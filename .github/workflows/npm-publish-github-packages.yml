@@ -20,10 +20,9 @@ jobs:
         with:
           node-version: 18
           registry-url: https://npm.pkg.github.com/
-      - run: |
-          corepack enable
-          yarn install
-          yarn build
-          yarn publish
+      - run: corepack enable
+      - run: yarn install
+      - run: yarn build
+      - run: yarn publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
