@@ -22,8 +22,8 @@ jobs:
           registry-url: https://npm.pkg.github.com/
       - run: |
           corepack enable
-          pnpm i
-          pnpm build
-          pnpm publish
+          yarn install
+          yarn build
+          yarn publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
