@@ -1,0 +1,59 @@
+@top Program { Pipeline }
+
+
+
+Pipeline { Operator ( "|" Operator )* }
+
+// Operator { Drop | Hash | Head | Pass | Pseudonymize | Put | Rename | Select | Summarize | Taste | Where }
+
+Operator { Drop | Head | Pass | Where }
+
+Pass { "pass" }
+
+Drop { "drop" fieldList }
+
+Head { "head" Int64 }
+
+Comparision { "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not in" }
+
+Where { "where" Expression }
+
+Expression { Conjunction ( "||" Conjunction )* }
+
+Conjunction { Negation ( "&&" Negation )* }
+
+Negation { "!"? Predicate }
+
+Predicate { Field Comparision Value }
+
+fieldList { Field ("," Field)* }
+
+@tokens {
+
+  Bool { "true" | "false" }
+
+  None { "null" }
+
+  UInt64 { @digit }
+
+  Int64 { "-"? @digit }
+
+  Double { "-"? @digit+ ("." @digit+)? }
+
+  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ }
+
+  // TODO REVIEW Can a list be recursive?
+  List { "[" (Value ("," Value)*)? "]" }
+
+  Value { Bool | None | UInt64 | Int64 | Double | Ip }
+
+  Field { @asciiLetter+ }
+
+  space { @whitespace }
+
+  LineComment { "\\" }
+}
+
+@skip { space | LineComment }
+
+@detectDelim

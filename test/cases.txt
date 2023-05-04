@@ -1,0 +1,7 @@
+# Drop
+
+drop foo, bar | drop qux
+
+==>
+
+Program( Pipeline ( Operator ( Drop ( Field, Field ) ), Operator ( Drop (Field) ) ) )
