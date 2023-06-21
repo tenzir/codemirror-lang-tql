@@ -3,7 +3,7 @@ import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 import { completeFromList } from "@codemirror/autocomplete";
 
-export const TQL = LRLanguage.define({
+export const TenzirQueryLang = LRLanguage.define({
   parser: parser.configure({
     props: [
       styleTags({
@@ -31,7 +31,7 @@ export const TQL = LRLanguage.define({
   }),
 });
 
-export const tqlCompletion = TQL.data.of({
+export const tqlCompletion = TenzirQueryLang.data.of({
   autocomplete: completeFromList([
     { label: "drop", type: "keyword" },
     { label: "export", type: "keyword" },
@@ -70,5 +70,5 @@ export const tqlCompletion = TQL.data.of({
 });
 
 export function TQL() {
-  return new LanguageSupport(TQL, [tqlCompletion]);
+  return new LanguageSupport(TenzirQueryLang, [tqlCompletion]);
 }
