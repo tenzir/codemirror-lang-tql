@@ -3,7 +3,7 @@ import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 import { completeFromList } from "@codemirror/autocomplete";
 
-export const VastLanguage = LRLanguage.define({
+export const TQL = LRLanguage.define({
   parser: parser.configure({
     props: [
       styleTags({
@@ -31,15 +31,44 @@ export const VastLanguage = LRLanguage.define({
   }),
 });
 
-export const vastCompletion = VastLanguage.data.of({
+export const tqlCompletion = TQL.data.of({
   autocomplete: completeFromList([
-    { label: "head", type: "keyword" },
-    { label: "where", type: "keyword" },
     { label: "drop", type: "keyword" },
+    { label: "export", type: "keyword" },
+    { label: "extend", type: "keyword" },
+    { label: "from", type: "keyword" },
+    { label: "hash", type: "keyword" },
+    { label: "head", type: "keyword" },
+    { label: "import", type: "keyword" },
+    { label: "load", type: "keyword" },
+    { label: "measure", type: "keyword" },
+    { label: "parse", type: "keyword" },
     { label: "pass", type: "keyword" },
+    { label: "publish", type: "keyword" },
+    { label: "put", type: "keyword" },
+    { label: "print", type: "keyword" },
+    { label: "read", type: "keyword" },
+    { label: "rename", type: "keyword" },
+    { label: "repeat", type: "keyword" },
+    { label: "replace", type: "keyword" },
+    { label: "save", type: "keyword" },
+    { label: "select", type: "keyword" },
+    { label: "serve", type: "keyword" },
+    { label: "shell", type: "keyword" },
+    { label: "sigma", type: "keyword" },
+    { label: "sort", type: "keyword" },
+    { label: "subscribe", type: "keyword" },
+    { label: "summarize", type: "keyword" },
+    { label: "tail", type: "keyword" },
+    { label: "taste", type: "keyword" },
+    { label: "to", type: "keyword" },
+    { label: "unique", type: "keyword" },
+    { label: "version", type: "keyword" },
+    { label: "where", type: "keyword" },
+    { label: "write", type: "keyword" },
   ]),
 });
 
-export function Vast() {
-  return new LanguageSupport(VastLanguage, [vastCompletion]);
+export function TQL() {
+  return new LanguageSupport(TQL, [tqlCompletion]);
 }
