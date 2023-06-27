@@ -1,1 +1,1 @@
-# CodeMirror 6 language package for Vast
+# CodeMirror 6 language package for Tenzir Query Language

@@ -1,4 +1,4 @@
-import { VastLanguage } from "../dist/index.js";
+import { TenzirQueryLang } from "../dist/index.js";
 import { fileTests } from "@lezer/generator/dist/test";
 
 import * as fs from "fs";
@@ -15,8 +15,8 @@ for (let file of fs.readdirSync(caseDir)) {
       fs.readFileSync(path.join(caseDir, file), "utf8"),
       file
     )) {
-      console.log(VastLanguage.parser.parse("drop new, test"));
-      it(name, () => run(VastLanguage.parser));
+      console.log(TenzirQueryLang.parser.parse("drop new, test"));
+      it(name, () => run(TenzirQueryLang.parser));
       // also just print the result of the parse
     }
   });
