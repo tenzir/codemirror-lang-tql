@@ -1,7 +1,23 @@
-# Drop
+# One
 
-drop foo, bar | drop qux
+export | drop foo bar | head | drop qux | head 300 | serve
 
 ==>
 
-Program( Pipeline ( Operator ( Drop ( Field, Field ) ), Operator ( Drop (Field) ) ) )
+Pipeline(SourceOperator(Export),TransformationOperator(Arguments,Arguments),Head,TransformationOperator(Arguments),Head(UnsignedInteger),SinkOperator)
+
+
+# Where 1
+
+export | where src_ip == 1.2.3.4 | serve
+
+==>
+Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(Field,Comparision,Value(Ip)))))),SinkOperator)
+
+
+# Where 2
+
+export | where id.orig_h == 1.2.3.4 && ts > 1 hour ago | to /tmp/haha.json
+
+==>
+Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(Field,Comparision,Value(Ip))),Negation(Predicate(Field,Comparision,Value(Time)))))),SinkOperator(To(Filename)))

@@ -15,9 +15,10 @@ for (let file of fs.readdirSync(caseDir)) {
       fs.readFileSync(path.join(caseDir, file), "utf8"),
       file
     )) {
-      console.log(TenzirQueryLang.parser.parse("drop new, test"));
+      // console.log(
+      //   TenzirQueryLang.parser.parse("export | drop foo | drop qux | serve")
+      // );
       it(name, () => run(TenzirQueryLang.parser));
-      // also just print the result of the parse
     }
   });
 }

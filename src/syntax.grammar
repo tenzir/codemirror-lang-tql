@@ -1,22 +1,56 @@
-@top Program { Pipeline }
+@top Pipeline {
+  SourceOperator (TransformationOperator | Head | Where)* SinkOperator
+}
+
+Export {
+  "export"
+}
+
+From {
+  "from" Any+
+}
+
+Load {
+ "load" Any+
+}
+
+Read {
+ "read" Any+
+}
+
+Shell {
+ "shell" Any+
+}
+
+Version {
+ "version" | "version --dev"
+}
+
+SourceOperator {
+  Export | From | Load | Read | Shell | Version
+}
+
+Head {
+ "|" "head" UnsignedInteger?
+}
+
+Tail {
+ "|" "tail" UnsignedInteger?
+}
+
+Pass {
+ "|" "pass"
+}
+
+Repeat {
+ "|" "repeat" UnsignedInteger?
+}
 
 
 
-Pipeline { Operator ( "|" Operator )* }
-
-// Operator { Drop | Hash | Head | Pass | Pseudonymize | Put | Rename | Select | Summarize | Taste | Where }
-
-Operator { Drop | Head | Pass | Where }
-
-Pass { "pass" }
-
-Drop { "drop" fieldList }
-
-Head { "head" Int64 }
-
-Comparision { "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not in" }
-
-Where { "where" Expression }
+Where {
+"|" "where" Expression
+}
 
 Expression { Conjunction ( "||" Conjunction )* }
 
@@ -26,34 +60,58 @@ Negation { "!"? Predicate }
 
 Predicate { Field Comparision Value }
 
+Comparision { "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not in" }
+
 fieldList { Field ("," Field)* }
 
-@tokens {
+Value { Bool | None | Double | Ip | Time }
 
-  Bool { "true" | "false" }
-
-  None { "null" }
-
-  UInt64 { @digit }
-
-  Int64 { "-"? @digit }
-
-  Double { "-"? @digit+ ("." @digit+)? }
-
-  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ }
-
-  // TODO REVIEW Can a list be recursive?
-  List { "[" (Value ("," Value)*)? "]" }
-
-  Value { Bool | None | UInt64 | Int64 | Double | Ip }
-
-  Field { @asciiLetter+ }
-
-  space { @whitespace }
-
-  LineComment { "\\" }
+TransformationOperator {
+  "|" ("drop"|"enumerate"|"extend"|"hash"|"measure"|"parse"|"pass"|
+  "print"|"pseudonymize"|"put"|"rare"|"rename"|"repeat"|"replace"|
+  "select"|"shell"|"sigma"|"sort"|"summarize"|"tail"|"taste"|"top"|"unique") Arguments* Flags*
 }
 
-@skip { space | LineComment }
 
-@detectDelim
+To {
+   "|" "to" Filename
+}
+
+
+SinkOperator {
+  ("|" ("import"|"save"|"serve"|"write") Arguments* Flags*) | To
+}
+
+@tokens {
+  Arguments { @asciiLetter+ }
+  UnsignedInteger { @digit+ }
+  string { @asciiLetter+ }
+  space { @whitespace }
+  Any { (@asciiLetter | @digit | $[.,])+ }
+  Filename {  (@asciiLetter | @digit | $[.,/])+  }
+
+
+
+
+  Bool { "true" | "false" }
+  None { "null" }
+
+  Double { "-"? @digit+ "." @digit+ }
+  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ }
+  @precedence { Ip, Double }
+
+  Time {"now" | @digit+ @whitespace ("hour" | "day" | "week" | "month" | "year") @whitespace ("ago")? }
+
+  List { "[" (Value ("," Value)*)? "]" }
+  Field { (@asciiLetter | $[._-])+ }
+}
+
+// should match all of now, 1h ago, 2020-01-01+10:42:00
+
+
+Flags {
+  "--"string
+}
+
+
+@skip { space }
