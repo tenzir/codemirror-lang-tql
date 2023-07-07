@@ -21,3 +21,11 @@ export | where id.orig_h == 1.2.3.4 && ts > 1 hour ago | to /tmp/haha.json
 
 ==>
 Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(Field,Comparision,Value(Ip))),Negation(Predicate(Field,Comparision,Value(Time)))))),SinkOperator(To(Filename)))
+
+
+# Shouldn't Parse Correctly
+
+1232131
+
+==>
+⚠

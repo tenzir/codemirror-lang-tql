@@ -45,13 +45,29 @@ const processFile = async (filePath) => {
   }
 };
 
-// TODO: ignore README.md files, and other files that are not inside souces, transformations, or sinks
 const processDirectory = async (directoryPath, outputPath) => {
   try {
     const files = await readDirectory(directoryPath);
     for (let file of files) {
       file = path.resolve(directoryPath, file);
+
+      // Also ignore README.md files
+      if (path.basename(file) === "README.md") {
+        continue;
+      }
+
+      // ignore files that are not inside sources, transformations, or sinks subdirectories
+      // TODO: this is a hacky way to do this, but it works for now
+      if (
+        !file.includes("sources") &&
+        !file.includes("transformations") &&
+        !file.includes("sinks")
+      ) {
+        continue;
+      }
+
       const stat = await lstat(file);
+
       if (stat.isDirectory()) {
         await processDirectory(file, outputPath);
       } else if (path.extname(file) === ".md") {
