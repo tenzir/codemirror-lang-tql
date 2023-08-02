@@ -8,24 +8,12 @@ export const TenzirQueryLang = LRLanguage.define({
   parser: parser.configure({
     props: [
       styleTags({
-        Int64: t.integer,
-        UInt64: t.integer,
-        Ip: t.atom,
-
-        None: t.null,
-        Comparison: t.compareOperator,
-        "|| &&": t.logicOperator,
-        true: t.bool,
-        false: t.bool,
-
-        Field: t.variableName,
-        LineComment: t.comment,
-        "|": t.operatorKeyword,
-
-        Head: t.keyword,
-        Where: t.keyword,
-        Pass: t.keyword,
-        Drop: t.keyword,
+        "Null Bool Integer Float Ip String": t.literal,
+        "OperatorName!": t.name,
+        "Punct": t.punctuation,
+        "Type": t.typeName,
+        "Pipe": t.punctuation,
+        "LineComment BlockComment": t.comment,
       }),
     ],
     // TODO: add folding later

@@ -1,117 +1,54 @@
-@top Pipeline {
-  SourceOperator (TransformationOperator | Head | Where)* SinkOperator
+@top Root {
+  (Operator (Pipe Operator)*)?
 }
-
-Export {
-  "export"
-}
-
-From {
-  "from" Any+
-}
-
-Load {
- "load" Any+
-}
-
-Read {
- "read" Any+
-}
-
-Shell {
- "shell" Any+
-}
-
-Version {
- "version" | "version --dev"
-}
-
-SourceOperator {
-  Export | From | Load | Read | Shell | Version
-}
-
-Head {
- "|" "head" UnsignedInteger?
-}
-
-Tail {
- "|" "tail" UnsignedInteger?
-}
-
-Pass {
- "|" "pass"
-}
-
-Repeat {
- "|" "repeat" UnsignedInteger?
-}
-
-
-
-Where {
-"|" "where" Expression
-}
-
-Expression { Conjunction ( "||" Conjunction )* }
-
-Conjunction { Negation ( "&&" Negation )* }
-
-Negation { "!"? Predicate }
-
-Predicate { Field Comparision Value }
-
-Comparision { "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not in" }
-
-fieldList { Field ("," Field)* }
-
-Value { Bool | None | Double | Ip | Time }
-
-TransformationOperator {
-  "|" ("drop"|"enumerate"|"extend"|"hash"|"measure"|"parse"|"pass"|
-  "print"|"pseudonymize"|"put"|"rare"|"rename"|"repeat"|"replace"|
-  "select"|"shell"|"sigma"|"sort"|"summarize"|"tail"|"taste"|"top"|"unique") Arguments* Flags*
-}
-
-
-To {
-   "|" "to" Filename
-}
-
-
-SinkOperator {
-  ("|" ("import"|"save"|"serve"|"write") Arguments* Flags*) | To
+Operator { OperatorName arg* }
+OperatorName { Word }
+arg {
+  Word | 
+  String |
+  Punct |
+  Integer |
+  Float |
+  Ip |
+  Type |
+  Meta | 
+  Bool |
+  Null |
+  Parenthesis
 }
 
 @tokens {
-  Arguments { @asciiLetter+ }
-  UnsignedInteger { @digit+ }
-  string { @asciiLetter+ }
-  space { @whitespace }
-  Any { (@asciiLetter | @digit | $[.,])+ }
-  Filename {  (@asciiLetter | @digit | $[.,/])+  }
-
-
-
-
+  Word { $[a-zA-Z0-9-_,/:$]+ }
+  String { "\"" !["]* "\""}
+  Punct { "==" | "||" | "&&" | "=" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not" | "+" | "-" | "*" | "/" | "." }
+  Parenthesis { $[()[\]{}] }
+  Type { ":" $[a-zA-Z_]* }
+  Meta { "#" $[a-zA-Z_]+ }
+  Integer { "-"? $[0-9]+ }
+  Float { "-"? @digit+ "." @digit+ }
   Bool { "true" | "false" }
-  None { "null" }
+  Null { "null" }
+  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ ("/" @digit*)? }
+  Pipe { "|" }
 
-  Double { "-"? @digit+ "." @digit+ }
-  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ }
-  @precedence { Ip, Double }
+  whitespace { @whitespace }
+  LineComment { ("//" | "# " ) ![\n]* }
 
-  Time {"now" | @digit+ @whitespace ("hour" | "day" | "week" | "month" | "year") @whitespace ("ago")? }
-
-  List { "[" (Value ("," Value)*)? "]" }
-  Field { (@asciiLetter | $[._-])+ }
+  @precedence { "/*", LineComment, Type, Punct, Ip, Float, Integer, Null, Bool, Word }
 }
 
-// should match all of now, 1h ago, 2020-01-01+10:42:00
+@skip { whitespace | BlockComment | LineComment }
 
-
-Flags {
-  "--"string
+@skip {} {
+  BlockComment { "/*" (blockCommentContent | blockCommentNewline)* blockCommentEnd }
 }
 
+@local tokens {
+  blockCommentEnd { "*/" }
+  blockCommentNewline { "\n" }
+  @else blockCommentContent
+}
 
-@skip { space }
+@detectDelim
+
+// @external propSource jsonHighlighting from "./highlight"
