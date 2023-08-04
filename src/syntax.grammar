@@ -1,3 +1,7 @@
+// Note: This is rather incomplete and on a best-effort basis. Also, writing
+// such a grammar would be easier with lookahead, but this does not seem to be
+// supported by lezer.
+
 @top Root {
   (Operator (Pipe Operator)*)?
 }
@@ -7,8 +11,8 @@ arg {
   Word | 
   String |
   Punct |
-  Integer |
-  Float |
+  Time |
+  Number |
   Ip |
   Type |
   Meta | 
@@ -18,23 +22,41 @@ arg {
 }
 
 @tokens {
-  Word { $[a-zA-Z0-9-_,/:$]+ }
-  String { "\"" !["]* "\""}
-  Punct { "==" | "||" | "&&" | "=" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not" | "+" | "-" | "*" | "/" | "." }
+  Word { $[a-zA-Z0-9-_/$:]+ }
+  Identifier { $[a-zA-Z]$[a-zA-Z0-9]* }
+  String {
+    "\"" (!["] | "\\\"")* "\"" |
+    "'" (!['] | "\\'")* "'" |
+    "/" (![/] | "\\/")* "/"
+  }
+  Punct { "==" | "||" | "&" | "=" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not" | "+" | "-" | "*" | "/" | "." | "%" | "," }
   Parenthesis { $[()[\]{}] }
-  Type { ":" $[a-zA-Z_]* }
+  Type { ":" ($[a-zA-Z_]+ | @eof) }
   Meta { "#" $[a-zA-Z_]+ }
-  Integer { "-"? $[0-9]+ }
-  Float { "-"? @digit+ "." @digit+ }
+  Number { Integer | Float | Count }
+  Count { Integer @whitespace* ("Ki" | "Mi" | "Gi" | "Ti" | "Pi" | "Ei") }
+  Integer { ("-" | "+")? $[0-9]+ }
+  Float { ("-" | "+")? @digit+ "." @digit+ }
   Bool { "true" | "false" }
   Null { "null" }
-  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ ("/" @digit*)? }
+  Ip {
+    @digit+ "." @digit+ "." @digit+ "." @digit+ ("/" @digit*)? |
+    $[0-9a-fA-F]* "::" ($[0-9a-fA-F]+ ("::" | "."))* $[0-9a-fA-F]+
+  }
   Pipe { "|" }
+  Time {
+    "now" |
+    (Integer | Float) @whitespace* TimeUnit (@whitespace+ "ago")? |
+    "in" @whitespace+ (Integer | Float) @whitespace* TimeUnit
+  }
+  TimeUnit {
+    "nanoseconds" | "nanosecond" | "nsecs" | "nsec" | "ns" | "microseconds" | "microsecond" | "usecs" | "usec" | "us" | "milliseconds" | "millisecond" | "msecs" | "msec" | "ms" | "seconds" | "second" | "secs" | "sec" | "s" | "minutes" | "minute" | "mins" | "min" | "m" | "hours" | "hour" | "hrs" | "h" | "days" | "day" | "d" | "weeks" | "week" | "w" | "years" | "year" | "y"
+  }
 
   whitespace { @whitespace }
-  LineComment { ("//" | "# " ) ![\n]* }
+  LineComment { ("//" | "# " | "#!" ) ![\n]* }
 
-  @precedence { "/*", LineComment, Type, Punct, Ip, Float, Integer, Null, Bool, Word }
+  @precedence { "/*", LineComment, Time, Type, Ip, Number, String, Punct, Null, Bool, Identifier, Word }
 }
 
 @skip { whitespace | BlockComment | LineComment }
@@ -50,5 +72,3 @@ arg {
 }
 
 @detectDelim
-
-// @external propSource jsonHighlighting from "./highlight"
