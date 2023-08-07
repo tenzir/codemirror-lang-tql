@@ -58,4 +58,3 @@ export const tqlCompletion = TenzirQueryLang.data.of({
 export function TQL() {
   return new LanguageSupport(TenzirQueryLang, [tqlCompletion]);
 }
-; dsad;
