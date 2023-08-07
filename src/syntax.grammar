@@ -2,13 +2,15 @@
 // such a grammar would be easier with lookahead, but this does not seem to be
 // supported by lezer.
 
+
 @top Root {
   (Operator (Pipe Operator)*)?
 }
 Operator { OperatorName arg* }
 OperatorName { Word }
 arg {
-  Word | 
+  Word |
+  Flag |
   String |
   Punct |
   Time |
@@ -29,6 +31,7 @@ arg {
     "'" (!['] | "\\'")* "'" |
     "/" (![/] | "\\/")* "/"
   }
+  Flag { "--" Word | "-" $[a-zA-Z0-9] whitespace }
   Punct { "==" | "||" | "&" | "=" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not" | "+" | "-" | "*" | "/" | "." | "%" | "," }
   Parenthesis { $[()[\]{}] }
   Type { ":" ($[a-zA-Z_]+ | @eof) }
@@ -36,7 +39,7 @@ arg {
   Number { Integer | Float | Count }
   Count { Integer @whitespace* ("Ki" | "Mi" | "Gi" | "Ti" | "Pi" | "Ei") }
   Integer { ("-" | "+")? $[0-9]+ }
-  Float { ("-" | "+")? @digit+ "." @digit+ }
+  Float { ("-" | "+")? @digit+ "." @digit* }
   Bool { "true" | "false" }
   Null { "null" }
   Ip {
@@ -46,6 +49,14 @@ arg {
   Pipe { "|" }
   Time {
     "now" |
+    "@" (Integer | Float) |
+    $[1-2]$[0-9]$[0-9]$[0-9] "-"
+      $[0-1]?$[0-9] (
+        "-" Integer (
+          ("+" | "T" | " ")
+          (Integer (":" Integer)*)?
+        )?
+      )? |
     (Integer | Float) @whitespace* TimeUnit (@whitespace+ "ago")? |
     "in" @whitespace+ (Integer | Float) @whitespace* TimeUnit
   }
@@ -56,7 +67,7 @@ arg {
   whitespace { @whitespace }
   LineComment { ("//" | "# " | "#!" ) ![\n]* }
 
-  @precedence { "/*", LineComment, Time, Type, Ip, Number, String, Punct, Null, Bool, Identifier, Word }
+  @precedence { "/*", LineComment, Time, Type, Ip, Number, String, Flag, Punct, Null, Bool, Identifier, Word }
 }
 
 @skip { whitespace | BlockComment | LineComment }
@@ -70,5 +81,7 @@ arg {
   blockCommentNewline { "\n" }
   @else blockCommentContent
 }
+
+@detectDelim
 
 @detectDelim
