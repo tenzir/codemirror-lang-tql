@@ -2,7 +2,6 @@
 // such a grammar would be easier with lookahead, but this does not seem to be
 // supported by lezer.
 
-
 @top Root {
   (Operator (Pipe Operator)*)?
 }
@@ -10,6 +9,7 @@ Operator { OperatorName arg* }
 OperatorName { Word }
 arg {
   Word |
+  Path |
   Flag |
   String |
   Punct |
@@ -25,6 +25,7 @@ arg {
 
 @tokens {
   Word { $[a-zA-Z0-9-_/$:]+ }
+  Path { "/" ((Word | ".")* "/")+ (Word | ".")+ }
   Identifier { $[a-zA-Z]$[a-zA-Z0-9]* }
   String {
     "\"" (!["] | "\\\"")* "\"" |
@@ -67,7 +68,7 @@ arg {
   whitespace { @whitespace }
   LineComment { ("//" | "# " | "#!" ) ![\n]* }
 
-  @precedence { "/*", LineComment, Time, Type, Ip, Number, String, Flag, Punct, Null, Bool, Identifier, Word }
+  @precedence { "/*", LineComment, Time, Type, Ip, Number, Path, String, Flag, Punct, Null, Bool, Identifier, Word }
 }
 
 @skip { whitespace | BlockComment | LineComment }
@@ -81,7 +82,5 @@ arg {
   blockCommentNewline { "\n" }
   @else blockCommentContent
 }
-
-@detectDelim
 
 @detectDelim
