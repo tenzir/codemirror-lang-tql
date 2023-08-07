@@ -3,8 +3,7 @@
 export | drop foo bar | head | drop qux | head 300 | serve
 
 ==>
-
-Pipeline(SourceOperator(Export),TransformationOperator(Arguments,Arguments),Head,TransformationOperator(Arguments),Head(UnsignedInteger),SinkOperator)
+Root(Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word,Word),Pipe,Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word),Pipe,Operator(OperatorName(Word),Integer),Pipe,Operator(OperatorName(Word)))
 
 
 # Where 1
@@ -12,7 +11,7 @@ Pipeline(SourceOperator(Export),TransformationOperator(Arguments,Arguments),Head
 export | where src_ip == 1.2.3.4 | serve
 
 ==>
-Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(Field,Comparision,Value(Ip)))))),SinkOperator)
+Root(Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word,Punct,Ip),Pipe,Operator(OperatorName(Word)))
 
 
 # Where 2
@@ -20,7 +19,7 @@ Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(
 export | where id.orig_h == 1.2.3.4 && ts > 1 hour ago | to /tmp/haha.json
 
 ==>
-Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(Field,Comparision,Value(Ip))),Negation(Predicate(Field,Comparision,Value(Time)))))),SinkOperator(To(Filename)))
+Root(Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word,Punct,Word,Punct,Ip,Punct,Word,Punct,Integer,Word,Word),Pipe,Operator(OperatorName(Word),Punct,Word,Punct,Word))
 
 
 # Shouldn't Parse Correctly
@@ -28,4 +27,4 @@ Pipeline(SourceOperator(Export),Where(Expression(Conjunction(Negation(Predicate(
 1232131
 
 ==>
-⚠
+Root(⚠(Integer))

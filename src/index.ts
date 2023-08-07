@@ -8,24 +8,13 @@ export const TenzirQueryLang = LRLanguage.define({
   parser: parser.configure({
     props: [
       styleTags({
-        Int64: t.integer,
-        UInt64: t.integer,
-        Ip: t.atom,
-
-        None: t.null,
-        Comparison: t.compareOperator,
-        "|| &&": t.logicOperator,
-        true: t.bool,
-        false: t.bool,
-
-        Field: t.variableName,
-        LineComment: t.comment,
-        "|": t.operatorKeyword,
-
-        Head: t.keyword,
-        Where: t.keyword,
-        Pass: t.keyword,
-        Drop: t.keyword,
+        "Null Bool Number Ip String Time": t.literal,
+        "OperatorName!": t.name,
+        "Punct": t.punctuation,
+        "Type": t.typeName,
+        "Pipe": t.separator,
+        "LineComment BlockComment": t.comment,
+        "Meta": t.meta,
       }),
     ],
     // TODO: add folding later
@@ -69,3 +58,4 @@ export const tqlCompletion = TenzirQueryLang.data.of({
 export function TQL() {
   return new LanguageSupport(TenzirQueryLang, [tqlCompletion]);
 }
+; dsad;

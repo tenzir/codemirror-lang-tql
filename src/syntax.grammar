@@ -1,117 +1,87 @@
-@top Pipeline {
-  SourceOperator (TransformationOperator | Head | Where)* SinkOperator
+// Note: This is rather incomplete and on a best-effort basis. Also, writing
+// such a grammar would be easier with lookahead, but this does not seem to be
+// supported by lezer.
+
+
+@top Root {
+  (Operator (Pipe Operator)*)?
 }
-
-Export {
-  "export"
-}
-
-From {
-  "from" Any+
-}
-
-Load {
- "load" Any+
-}
-
-Read {
- "read" Any+
-}
-
-Shell {
- "shell" Any+
-}
-
-Version {
- "version" | "version --dev"
-}
-
-SourceOperator {
-  Export | From | Load | Read | Shell | Version
-}
-
-Head {
- "|" "head" UnsignedInteger?
-}
-
-Tail {
- "|" "tail" UnsignedInteger?
-}
-
-Pass {
- "|" "pass"
-}
-
-Repeat {
- "|" "repeat" UnsignedInteger?
-}
-
-
-
-Where {
-"|" "where" Expression
-}
-
-Expression { Conjunction ( "||" Conjunction )* }
-
-Conjunction { Negation ( "&&" Negation )* }
-
-Negation { "!"? Predicate }
-
-Predicate { Field Comparision Value }
-
-Comparision { "==" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not in" }
-
-fieldList { Field ("," Field)* }
-
-Value { Bool | None | Double | Ip | Time }
-
-TransformationOperator {
-  "|" ("drop"|"enumerate"|"extend"|"hash"|"measure"|"parse"|"pass"|
-  "print"|"pseudonymize"|"put"|"rare"|"rename"|"repeat"|"replace"|
-  "select"|"shell"|"sigma"|"sort"|"summarize"|"tail"|"taste"|"top"|"unique") Arguments* Flags*
-}
-
-
-To {
-   "|" "to" Filename
-}
-
-
-SinkOperator {
-  ("|" ("import"|"save"|"serve"|"write") Arguments* Flags*) | To
+Operator { OperatorName arg* }
+OperatorName { Word }
+arg {
+  Word |
+  Flag |
+  String |
+  Punct |
+  Time |
+  Number |
+  Ip |
+  Type |
+  Meta | 
+  Bool |
+  Null |
+  Parenthesis
 }
 
 @tokens {
-  Arguments { @asciiLetter+ }
-  UnsignedInteger { @digit+ }
-  string { @asciiLetter+ }
-  space { @whitespace }
-  Any { (@asciiLetter | @digit | $[.,])+ }
-  Filename {  (@asciiLetter | @digit | $[.,/])+  }
-
-
-
-
+  Word { $[a-zA-Z0-9-_/$:]+ }
+  Identifier { $[a-zA-Z]$[a-zA-Z0-9]* }
+  String {
+    "\"" (!["] | "\\\"")* "\"" |
+    "'" (!['] | "\\'")* "'" |
+    "/" (![/] | "\\/")* "/"
+  }
+  Flag { "--" Word | "-" $[a-zA-Z0-9] whitespace }
+  Punct { "==" | "||" | "&" | "=" | "!=" | "<" | "<=" | ">" | ">=" | "in" | "not" | "+" | "-" | "*" | "/" | "." | "%" | "," }
+  Parenthesis { $[()[\]{}] }
+  Type { ":" ($[a-zA-Z_]+ | @eof) }
+  Meta { "#" $[a-zA-Z_]+ }
+  Number { Integer | Float | Count }
+  Count { Integer @whitespace* ("Ki" | "Mi" | "Gi" | "Ti" | "Pi" | "Ei") }
+  Integer { ("-" | "+")? $[0-9]+ }
+  Float { ("-" | "+")? @digit+ "." @digit* }
   Bool { "true" | "false" }
-  None { "null" }
+  Null { "null" }
+  Ip {
+    @digit+ "." @digit+ "." @digit+ "." @digit+ ("/" @digit*)? |
+    $[0-9a-fA-F]* "::" ($[0-9a-fA-F]+ ("::" | "."))* $[0-9a-fA-F]+
+  }
+  Pipe { "|" }
+  Time {
+    "now" |
+    "@" (Integer | Float) |
+    $[1-2]$[0-9]$[0-9]$[0-9] "-"
+      $[0-1]?$[0-9] (
+        "-" Integer (
+          ("+" | "T" | " ")
+          (Integer (":" Integer)*)?
+        )?
+      )? |
+    (Integer | Float) @whitespace* TimeUnit (@whitespace+ "ago")? |
+    "in" @whitespace+ (Integer | Float) @whitespace* TimeUnit
+  }
+  TimeUnit {
+    "nanoseconds" | "nanosecond" | "nsecs" | "nsec" | "ns" | "microseconds" | "microsecond" | "usecs" | "usec" | "us" | "milliseconds" | "millisecond" | "msecs" | "msec" | "ms" | "seconds" | "second" | "secs" | "sec" | "s" | "minutes" | "minute" | "mins" | "min" | "m" | "hours" | "hour" | "hrs" | "h" | "days" | "day" | "d" | "weeks" | "week" | "w" | "years" | "year" | "y"
+  }
 
-  Double { "-"? @digit+ "." @digit+ }
-  Ip { @digit+ "." @digit+ "." @digit+ "." @digit+ }
-  @precedence { Ip, Double }
+  whitespace { @whitespace }
+  LineComment { ("//" | "# " | "#!" ) ![\n]* }
 
-  Time {"now" | @digit+ @whitespace ("hour" | "day" | "week" | "month" | "year") @whitespace ("ago")? }
-
-  List { "[" (Value ("," Value)*)? "]" }
-  Field { (@asciiLetter | $[._-])+ }
+  @precedence { "/*", LineComment, Time, Type, Ip, Number, String, Flag, Punct, Null, Bool, Identifier, Word }
 }
 
-// should match all of now, 1h ago, 2020-01-01+10:42:00
+@skip { whitespace | BlockComment | LineComment }
 
-
-Flags {
-  "--"string
+@skip {} {
+  BlockComment { "/*" (blockCommentContent | blockCommentNewline)* blockCommentEnd }
 }
 
+@local tokens {
+  blockCommentEnd { "*/" }
+  blockCommentNewline { "\n" }
+  @else blockCommentContent
+}
 
-@skip { space }
+@detectDelim
+
+@detectDelim
