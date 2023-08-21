@@ -3,12 +3,11 @@ import path from "path";
 import rehypeStringify from "rehype-stringify";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
-import remarkDirective from "remark-directive";
 import strip from "strip-markdown";
 import { remark } from "remark";
 import { unified } from "unified";
 import { promisify } from "util";
-import { remarkProcessAdmonitions } from "./admonitions.js";
+import remarkFlexibleContainers from "remark-flexible-containers";
 
 const readFile = promisify(fs.readFile);
 const readDirectory = promisify(fs.readdir);
@@ -17,8 +16,7 @@ const lstat = promisify(fs.lstat);
 
 const infoProcessor = unified()
   .use(remarkParse)
-  .use(remarkDirective)
-  .use(remarkProcessAdmonitions)
+  .use(remarkFlexibleContainers)
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeStringify);
 
@@ -44,7 +42,6 @@ const processFile = async (filePath) => {
     const docLink = `https://docs.tenzir.com${docRoute}`;
 
     let info = `${lines.join("\n")}`;
-
     // add link to docs to info
     info = info + `\n\n\n#### [Read more](${docLink})`;
 
