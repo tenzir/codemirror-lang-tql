@@ -3,20 +3,26 @@ import path from "path";
 import rehypeStringify from "rehype-stringify";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
+import remarkDirective from "remark-directive";
+import strip from "strip-markdown";
+import { remark } from "remark";
 import { unified } from "unified";
 import { promisify } from "util";
+import { remarkProcessAdmonitions } from "./admonitions.js";
 
 const readFile = promisify(fs.readFile);
 const readDirectory = promisify(fs.readdir);
 const writeFile = promisify(fs.writeFile);
 const lstat = promisify(fs.lstat);
 
-// TODO: clean up the markdown in detail via remark-format
-// TODO: clean up package.json
-const processor = unified()
+const infoProcessor = unified()
   .use(remarkParse)
+  .use(remarkDirective)
+  .use(remarkProcessAdmonitions)
   .use(remarkRehype, { allowDangerousHtml: true })
   .use(rehypeStringify);
+
+const detailProcessor = remark().use(strip);
 
 let output = [];
 
@@ -32,13 +38,16 @@ const processFile = async (filePath) => {
         break;
       }
     }
+
     let info = `${lines.join("\n")}`;
-    const file = await processor.process(info);
+    const infoFile = await infoProcessor.process(info);
+    const detailFile = await detailProcessor.process(detail);
+
     output.push({
       label: path.basename(filePath, ".md"),
       type: "keyword",
-      detail: detail,
-      processedHTML: String(file),
+      detail: String(detailFile).trim(), // remove trailing whitespace
+      processedHTML: String(infoFile),
     });
   } catch (err) {
     console.error(err);
@@ -78,7 +87,7 @@ const processDirectory = async (directoryPath, outputPath) => {
     await writeFile(
       outputPath,
       `export const data = ${JSON.stringify(output)};`,
-      "utf8"
+      "utf8",
     );
   } catch (err) {
     console.error(err);
