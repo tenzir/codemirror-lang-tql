@@ -39,8 +39,17 @@ const processFile = async (filePath) => {
       }
     }
 
+    // get relative path to docs from filePath
+    const docRoute = filePath.split("docs")[1].split(".md")[0];
+    const docLink = `https://docs.tenzir.com${docRoute}`;
+
     let info = `${lines.join("\n")}`;
+
+    // add link to docs to info
+    info = info + `\n\n\n#### [Read more](${docLink})`;
+
     const infoFile = await infoProcessor.process(info);
+
     const detailFile = await detailProcessor.process(detail);
 
     output.push({
