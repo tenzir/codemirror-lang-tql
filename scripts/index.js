@@ -43,7 +43,9 @@ const processFile = async (filePath) => {
 
     let info = `${lines.join("\n")}`;
     // add link to docs to info
-    info = info + `\n\n\n#### [Read more](${docLink})`;
+    //
+    // find the
+    info = info + `\n\n\n## [Read more](${docLink})`;
 
     const infoFile = await infoProcessor.process(info);
 
