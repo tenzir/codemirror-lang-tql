@@ -10,11 +10,11 @@ export const TenzirQueryLang = LRLanguage.define({
       styleTags({
         "Null Bool Number Ip String Time": t.literal,
         "OperatorName!": t.name,
-        "Punct": t.punctuation,
-        "Type": t.typeName,
-        "Pipe": t.separator,
+        Punct: t.punctuation,
+        Type: t.typeName,
+        Pipe: t.separator,
         "LineComment BlockComment": t.comment,
-        "Meta": t.meta,
+        Meta: t.meta,
       }),
     ],
     // TODO: add folding later
@@ -26,6 +26,7 @@ type GeneretedCompletion = {
   type: string;
   detail: string;
   processedHTML: string;
+  docLink: string;
 };
 
 type Completion = {
@@ -42,13 +43,19 @@ const getCompletion = (completion: GeneretedCompletion): Completion => {
     detail: completion.detail,
     info: () => {
       const node = document.createElement("div");
-      node.innerHTML = completion.processedHTML;
+      const div = document.createElement("div");
+      div.className = "custom-completioninfoHeader";
+
+      div.innerHTML = `<div><a class="custom-docLink" href="${completion.docLink}" target="_blank"><span>${completion.label}</span><div class="custom-icon"></div></a></div>`;
+
+      node.insertAdjacentElement("afterbegin", div);
+      node.innerHTML += completion.processedHTML;
       return node;
     },
   };
 };
 const tqlCompletionList = data.map((completion: GeneretedCompletion) =>
-  getCompletion(completion)
+  getCompletion(completion),
 );
 
 export const tqlCompletion = TenzirQueryLang.data.of({

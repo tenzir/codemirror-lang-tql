@@ -27,25 +27,22 @@ let output = [];
 const processFile = async (filePath) => {
   try {
     const data = await readFile(filePath, "utf8");
-    let detail = "";
     let lines = data.split("\n");
+    let detail = undefined;
+    let infoArr = [];
+
     for (let i = 1; i < lines.length; i++) {
-      if (lines[i].trim() !== "") {
-        detail = lines[i].trim();
-        lines = lines.slice(i + 1);
-        break;
+      if (detail == undefined && lines[i].trim() !== "") {
+        detail = lines[i];
+      } else if (detail != null) {
+        infoArr.push(lines[i]);
       }
     }
+    let info = infoArr.join("\n");
 
     // get relative path to docs from filePath
     const docRoute = filePath.split("docs")[1].split(".md")[0];
     const docLink = `https://docs.tenzir.com${docRoute}`;
-
-    let info = `${lines.join("\n")}`;
-    // add link to docs to info
-    //
-    // find the
-    info = info + `\n\n\n## [Read more](${docLink})`;
 
     const infoFile = await infoProcessor.process(info);
 
@@ -56,6 +53,7 @@ const processFile = async (filePath) => {
       type: "keyword",
       detail: String(detailFile).trim(), // remove trailing whitespace
       processedHTML: String(infoFile),
+      docLink,
     });
   } catch (err) {
     console.error(err);
