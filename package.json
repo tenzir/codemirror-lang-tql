@@ -1,8 +1,5 @@
 {
   "name": "@tenzir/codemirror-lang-tql",
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
   "repository": {
     "type": "git",
     "url": "https://github.com/tenzir/codemirror-lang-tql.git"
