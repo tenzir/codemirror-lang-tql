@@ -2,7 +2,10 @@
   "name": "@tenzir/codemirror-lang-tql",
   "repository": {
     "type": "git",
-    "url": "https://github.com/tenzir/codemirror-lang-tql.git"
+    "url": "git+https://github.com/tenzir/codemirror-lang-tql.git"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "version": "0.3.2",
   "description": "Tenzir Query Language (TQL) support for CodeMirror",
