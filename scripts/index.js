@@ -46,7 +46,6 @@ const processFile = async (filePath) => {
       }
     }
     while (i < lines.length) {
-      console.log(lines[i])
       if (detail == undefined && lines[i].trim() !== "") {
         detail = lines[i];
       } else if (detail != null) {
