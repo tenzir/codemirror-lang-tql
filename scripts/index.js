@@ -31,12 +31,27 @@ const processFile = async (filePath) => {
     let detail = undefined;
     let infoArr = [];
 
-    for (let i = 1; i < lines.length; i++) {
+    let i = 0;
+    while (i < lines.length) {
+      if (lines[i].startsWith("---")) {
+        i++;
+        while (!lines[i].startsWith("---")) {
+          i++;
+        }
+        i++;
+      } else if (lines[i].trim() === "" || lines[i].startsWith("#")) {
+        i++;
+      } else {
+        break;
+      }
+    }
+    while (i < lines.length) {
       if (detail == undefined && lines[i].trim() !== "") {
         detail = lines[i];
       } else if (detail != null) {
         infoArr.push(lines[i]);
       }
+      i++;
     }
     let info = infoArr.join("\n");
 
@@ -74,9 +89,7 @@ const processDirectory = async (directoryPath, outputPath) => {
       // ignore files that are not inside sources, transformations, or sinks subdirectories
       // TODO: this is a hacky way to do this, but it works for now
       if (
-        !file.includes("sources") &&
-        !file.includes("transformations") &&
-        !file.includes("sinks")
+        !file.includes("/operators/")
       ) {
         continue;
       }
@@ -92,7 +105,7 @@ const processDirectory = async (directoryPath, outputPath) => {
 
     await writeFile(
       outputPath,
-      `export const data = ${JSON.stringify(output)};`,
+      `export const data = ${JSON.stringify(output, undefined, 2)};`,
       "utf8",
     );
   } catch (err) {
