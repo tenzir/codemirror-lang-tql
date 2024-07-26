@@ -1,30 +1,102 @@
-# One
+# Simple
 
-export | drop foo bar | head | drop qux | head 300 | serve
-
+foo
 ==>
-Root(Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word,Word),Pipe,Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word),Pipe,Operator(OperatorName(Word),Integer),Pipe,Operator(OperatorName(Word)))
+Pipeline(OpStmt(OpName(Ident),Soup))
 
 
-# Where 1
+# Simple and 1 argument
 
-export | where src_ip == 1.2.3.4 | serve
-
+foo bar
 ==>
-Root(Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word,Punct,Ip),Pipe,Operator(OperatorName(Word)))
+Pipeline(OpStmt(OpName(Ident),Soup(Ident)))
 
 
-# Where 2
+# Simple and 2 arguments
 
-export | where id.orig_h == 1.2.3.4 && ts > 1 hour ago | to /tmp/haha.json
-
+foo bar, baz
 ==>
-Root(Operator(OperatorName(Word)),Pipe,Operator(OperatorName(Word),Word,Punct,Word,Punct,Ip,Punct,Word,Punct,Integer,Word,Word),Pipe,Operator(OperatorName(Word),Punct,Word,Punct,Word))
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,Punct(","),Ident)))
 
 
-# Shouldn't Parse Correctly
 
-1232131
+# Operator Pipe
 
+foo bar | foo baz
 ==>
-Root(⚠(Integer))
+Pipeline(OpStmt(OpName(Ident),Soup(Ident)),Pipe,OpStmt(OpName(Ident),Soup(Ident)))
+
+
+# Operator Newline
+
+foo bar
+foo baz
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(Ident)),OpStmt(OpName(Ident),Soup(Ident)))
+
+
+# Simple assignment
+foo = bar
+==>
+Pipeline(AssignStmt(UnExpr(Ident),"=",Soup(Ident)))
+
+
+# Newline in expression
+foo (
+  bar)
+==>
+Pipeline(OpStmt(OpName(Ident),Soup("(",Ident,")")))
+
+
+# Newline in expression then operator
+foo (
+  bar)
+baz
+==>
+Pipeline(OpStmt(OpName(Ident),Soup("(",Ident,")")),OpStmt(OpName(Ident),Soup))
+
+
+# Let Definition
+let $foo = 42s
+==>
+Pipeline(LetStmt(Let,DollarIdent,"=",Soup(Scalar)))
+
+
+# Newline after comma
+foo bar,
+  baz,
+  qux
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,Punct(","),Ident,Punct(","),Ident)))
+
+
+# Nested pipeline
+foo bar=baz {
+  qux
+}
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,Punct("="),Ident,PipeExpr(OpStmt(OpName(Ident),Soup)))))
+
+
+# Record with no fields
+foo {}
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(RecordExpr("{","}"))))
+
+
+# Record with one field
+foo { foo: bar }
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(RecordExpr("{",Ident,Soup(Ident),"}"))))
+
+
+# Record with two fields
+foo { foo: bar,baz:qux}
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(RecordExpr("{",Ident,Soup(Ident,Punct(","),Ident,Punct,Ident),"}"))))
+
+
+# Backslash
+test \
+  foo=42
+==>

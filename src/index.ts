@@ -1,20 +1,19 @@
-import { parser } from "./syntax.grammar";
+import { parser } from "./tql.grammar";
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
-import { completeFromList } from "@codemirror/autocomplete";
+import { completeFromList, Completion } from "@codemirror/autocomplete";
 import { data } from "../output.js";
 
 export const TenzirQueryLang = LRLanguage.define({
   parser: parser.configure({
     props: [
       styleTags({
-        "Null Bool Number Ip String Time": t.literal,
-        "OperatorName!": t.name,
-        Punct: t.punctuation,
-        Type: t.typeName,
-        Pipe: t.separator,
+        "Scalar true false null DollarIdent": t.literal,
+        "String": t.string,
+        "StringEsc and else if in let match meta not or this": t.keyword,
+        "OpName! FnIdent": t.name,
+        "+ - \"*\" \"/\" = . ' : \"!\" < > \"?\" \"|\"": t.punctuation,
         "LineComment BlockComment": t.comment,
-        Meta: t.meta,
       }),
     ],
     // TODO: add folding later
@@ -27,13 +26,6 @@ type GeneretedCompletion = {
   detail: string;
   processedHTML: string;
   docLink: string;
-};
-
-type Completion = {
-  label: string;
-  type: string;
-  detail: string;
-  info: () => Node;
 };
 
 const getCompletion = (completion: GeneretedCompletion): Completion => {
