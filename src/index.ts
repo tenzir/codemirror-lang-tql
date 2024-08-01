@@ -4,6 +4,8 @@ import { styleTags, tags as t } from "@lezer/highlight";
 import { completeFromList, Completion } from "@codemirror/autocomplete";
 import { data } from "../output.js";
 
+const puncation = `"+" "-" "*" "/" "," "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
+
 export const TenzirQueryLang = LRLanguage.define({
   parser: parser.configure({
     props: [
@@ -12,7 +14,7 @@ export const TenzirQueryLang = LRLanguage.define({
         "String": t.string,
         "StringEsc and else if in let match meta not or this": t.keyword,
         "OpName! FnIdent": t.name,
-        "+ - \"*\" \"/\" = . ' : \"!\" < > \"?\" \"|\"": t.punctuation,
+        [puncation]: t.punctuation,
         "LineComment BlockComment": t.comment,
       }),
     ],
