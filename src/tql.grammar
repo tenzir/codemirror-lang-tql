@@ -1,0 +1,135 @@
+@context context from "./tokens.ts"
+
+@top Pipeline { _Statements? }
+
+_Statements {
+  newline* (Pipe newline*)? _Stmt ((newline | Pipe) _Stmt?)*
+}
+
+_Stmt {
+  OpStmt |
+  AssignStmt |
+  (kw<"let"> | kw<"if"> | kw<"match">) Soup }
+
+OpStmt { OpName ~op_name ~op_name2 Soup }
+
+AssignStmt[@dynamicPrecedence=1] {
+  UnExpr ~op_name2 "=" Soup
+}
+
+OpName { Ident ~op_name } // TODO: Why do we need this here?
+// Entity { Ident ("'" Ident)* }
+
+// TODO: Expand this.
+UnExpr { Ident ~op_name2 ("." (Ident | ".")*)? }
+
+Soup { _Any* }
+
+// Anything but { } | and newline.
+_Any {
+  FnIdent |
+  Ident |
+  DollarIdent |
+  Scalar |
+  _Punct |
+  _Keyword |
+  RecordStart RecordRest |
+  PipeExpr |
+  String
+}
+
+RecordStart[@dynamicPrecedence=2] {
+  "{" newline* Ident ~op_name ":"
+}
+
+RecordRest {
+  (_Any | newline | Pipe)* "}"
+}
+
+PipeExpr {
+  "{" _Statements "}"
+}
+
+_Keyword {
+  kw<"and"> |
+  kw<"else"> |
+  kw<"false"> |
+  kw<"if"> |
+  kw<"in"> |
+  kw<"let"> |
+  kw<"match"> |
+  kw<"meta"> |
+  kw<"not"> |
+  kw<"null"> |
+  kw<"or"> |
+  kw<"this"> |
+  kw<"true">
+}
+
+_Punct {
+  "+" |
+  "-" |
+  "*" |
+  "/" |
+  "," |
+  "=" |
+  "." |
+  "'" |
+  ":" |
+  "!" |
+  "?" |
+  "<" |
+  ">" |
+  "[" |
+  "]" |
+  "(" |
+  ")"
+}
+
+Pipe { "|" }
+
+@tokens {
+  space { ($[ \t\f] | "\\" $[\n\r])+ }
+  LineComment { "//" ![\n\r]* }
+  ","[@export=Comma]
+  "("[@export=LParen] ")"[@export=RParen]
+  "{"[@export=LBrace] "}"[@export=RBrace]
+  "["[@export=LBracket] "]"[@export=RBracket]
+  Scalar { $[0-9]($[0-9] | "." | "_")* $[a-zA-Z0-9_]* }
+  @precedence { LineComment "/" }
+  "+" "-" "*" "/" "," "=" "." "'" ":" "!" "?" "<" ">"
+  stringContent { ![\\\"]+ }
+  StringEsc { "\\" _ }  // TODO: Complete it.
+}
+
+
+@skip {} {
+  String {
+    "\"" (stringContent | StringEsc)* "\""
+  }
+}
+
+
+@skip { space | ignoredNewline | LineComment | BlockComment }
+
+@skip {} {
+  BlockComment { "/*" blockCommentContent* blockCommentEnd }
+}
+
+@local tokens {
+  blockCommentEnd { "*/" }
+  @else blockCommentContent
+}
+
+@external tokens newlines from "./tokens.ts" {
+  newline,
+  ignoredNewline
+}
+
+@external tokens identifiers from "./tokens.ts" {
+  Ident,
+  FnIdent,
+  DollarIdent
+}
+
+kw<term> { @specialize[@name={term}]<Ident, term> }
