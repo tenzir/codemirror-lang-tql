@@ -4,7 +4,7 @@ import { styleTags, tags as t } from "@lezer/highlight";
 import { completeFromList, Completion } from "@codemirror/autocomplete";
 import { data } from "../output.js";
 
-const puncation = `"+" "-" "*" "/" "," "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
+const punctuation = `"+" "-" "*" "/" "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
 
 export const TenzirQueryLang = LRLanguage.define({
   parser: parser.configure({
@@ -14,7 +14,7 @@ export const TenzirQueryLang = LRLanguage.define({
         "String": t.string,
         "StringEsc and else if in let match meta not or this": t.keyword,
         "OpName! FnIdent": t.name,
-        [puncation]: t.punctuation,
+        [punctuation]: t.punctuation,
         "LineComment BlockComment": t.comment,
       }),
     ],
