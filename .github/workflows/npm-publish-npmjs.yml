@@ -14,8 +14,8 @@ jobs:
         with:
           node-version: "20"
       - run: corepack enable
-      - run: yarn install
-      - run: yarn build
+      - run: pnpm install
+      - run: pnpm build
 
       - uses: JS-DevTools/npm-publish@v3
         with:
