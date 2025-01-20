@@ -7,11 +7,14 @@ import { data } from "../output.js";
 const punctuation = `"+" "-" "*" "/" "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
 
 export const TenzirQueryLang = LRLanguage.define({
+  languageData: {
+    commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
+  },
   parser: parser.configure({
     props: [
       styleTags({
         "Scalar true false null DollarIdent": t.literal,
-        "String": t.string,
+        String: t.string,
         "StringEsc and else if in let match meta not or this": t.keyword,
         "OpName! FnIdent": t.name,
         [punctuation]: t.punctuation,
