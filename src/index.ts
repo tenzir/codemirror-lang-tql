@@ -5,6 +5,9 @@ import { completeFromList } from "@codemirror/autocomplete";
 import { data } from "../output.js";
 
 export const TenzirQueryLang = LRLanguage.define({
+  languageData: {
+    commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
+  },
   parser: parser.configure({
     props: [
       styleTags({
