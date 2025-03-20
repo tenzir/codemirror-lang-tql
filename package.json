@@ -7,7 +7,7 @@
   "publishConfig": {
     "access": "public"
   },
-  "version": "0.4.4",
+  "version": "0.4.5",
   "description": "Tenzir Query Language (TQL) support for CodeMirror",
   "scripts": {
     "build": "lezer-generator src/tql.grammar -o src/parser && rollup -c",
