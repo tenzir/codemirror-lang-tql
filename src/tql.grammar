@@ -33,9 +33,14 @@ _Any {
   Scalar |
   _Punct |
   _Keyword |
+  EmptyRecord |
   RecordStart RecordRest |
   PipeExpr |
   String
+}
+
+EmptyRecord {
+  "{" "}"
 }
 
 RecordStart[@dynamicPrecedence=2] {
@@ -79,6 +84,7 @@ _Punct {
   "=" |
   "." |
   "'" |
+  "::" |
   ":" |
   "!" |
   "?" |
@@ -107,13 +113,27 @@ Pipe { "|" }
   "+" "-" "*" "/" "," "=" "." "'" ":" "!" "?" "<" ">"
   "@" "%" "&" "#" ";" "^" "`"
   stringContent { ![\\\"]+ }
+  rawStringContent { !["]+ }
+  rawStringDelimEnd { "\"#" }
+  rawStringDelimContent { ![] }
   StringEsc { "\\" _ }  // TODO: Complete it.
 }
 
+String {
+  _NormalString |
+  _RawString |
+  _RawStringDelim
+}
 
 @skip {} {
-  String {
+  _NormalString {
     "\"" (stringContent | StringEsc)* "\""
+  }
+  _RawString {
+    "r\"" rawStringContent* "\""
+  }
+  _RawStringDelim {
+    "r#\"" rawStringDelimContent* rawStringDelimEnd
   }
 }
 

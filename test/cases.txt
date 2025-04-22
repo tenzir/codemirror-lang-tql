@@ -16,8 +16,7 @@ Pipeline(OpStmt(OpName(Ident),Soup(Ident)))
 
 foo bar, baz
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(Ident,Punct(","),Ident)))
-
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,",",Ident)))
 
 
 # Operator Pipe
@@ -59,7 +58,7 @@ Pipeline(OpStmt(OpName(Ident),Soup("(",Ident,")")),OpStmt(OpName(Ident),Soup))
 # Let Definition
 let $foo = 42s
 ==>
-Pipeline(LetStmt(Let,DollarIdent,"=",Soup(Scalar)))
+Pipeline(let,Soup(DollarIdent,"=",Scalar))
 
 
 # Newline after comma
@@ -67,7 +66,7 @@ foo bar,
   baz,
   qux
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(Ident,Punct(","),Ident,Punct(","),Ident)))
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,",",Ident,",",Ident)))
 
 
 # Nested pipeline
@@ -75,28 +74,45 @@ foo bar=baz {
   qux
 }
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(Ident,Punct("="),Ident,PipeExpr(OpStmt(OpName(Ident),Soup)))))
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,"=",Ident,PipeExpr("{",OpStmt(OpName(Ident),Soup),"}"))))
 
 
 # Record with no fields
 foo {}
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(RecordExpr("{","}"))))
+Pipeline(OpStmt(OpName(Ident),Soup(EmptyRecord("{","}"))))
 
 
 # Record with one field
 foo { foo: bar }
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(RecordExpr("{",Ident,Soup(Ident),"}"))))
+Pipeline(OpStmt(OpName(Ident),Soup(RecordStart("{",Ident,":"),RecordRest(Ident,"}"))))
 
 
 # Record with two fields
 foo { foo: bar,baz:qux}
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(RecordExpr("{",Ident,Soup(Ident,Punct(","),Ident,Punct,Ident),"}"))))
+Pipeline(OpStmt(OpName(Ident),Soup(RecordStart("{",Ident,":"),RecordRest(Ident,",",Ident,":",Ident,"}"))))
 
 
 # Backslash
 test \
   foo=42
 ==>
+Pipeline(OpStmt(OpName(Ident),Soup(Ident,"=",Scalar)))
+
+
+# Nested pipeline
+every 1s {
+  pipeline::list
+  select foo
+}
+deduplicate foo
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(Scalar,PipeExpr("{",OpStmt(OpName(Ident),Soup(Ident)),OpStmt(OpName(Ident),Soup(Ident)),"}"))),OpStmt(OpName(Ident),Soup(Ident)))
+
+
+# Raw string literals
+foo r"", r"\", r#""#, r#"""#, r#"foo"#
+==>
+Pipeline(OpStmt(OpName(Ident),Soup(String,",",String,",",String,",",String,",",String)))
