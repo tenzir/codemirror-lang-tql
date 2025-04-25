@@ -116,3 +116,15 @@ Pipeline(OpStmt(OpName(Ident),Soup(Scalar,PipeExpr("{",OpStmt(OpName(Ident),Soup
 foo r"", r"\", r#""#, r#"""#, r#"foo"#
 ==>
 Pipeline(OpStmt(OpName(Ident),Soup(String,",",String,",",String,",",String,",",String)))
+
+
+# Move operator
+move foo=bar
+==>
+Pipeline(OpStmt(OpName(move),Soup(Ident,"=",Ident)))
+
+
+# Move expression
+foo = move bar
+==>
+Pipeline(AssignStmt(UnExpr(Ident),"=",Soup(move,Ident)))

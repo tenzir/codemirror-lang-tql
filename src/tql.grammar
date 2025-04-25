@@ -17,7 +17,7 @@ AssignStmt[@dynamicPrecedence=1] {
   UnExpr ~op_name2 "=" Soup
 }
 
-OpName { Ident ~op_name } // TODO: Why do we need this here?
+OpName { Ident ~op_name | kw<"move"> } // TODO: Why do we need this here?
 // Entity { Ident ("'" Ident)* }
 
 // TODO: Expand this.
@@ -68,7 +68,8 @@ _Keyword {
   kw<"null"> |
   kw<"or"> |
   kw<"this"> |
-  kw<"true">
+  kw<"true"> |
+  kw<"move">
 }
 
 _Punct {
