@@ -13,7 +13,7 @@ export const TenzirQueryLang = LRLanguage.define({
       styleTags({
         "Scalar true false null DollarIdent": t.literal,
         String: t.string,
-        "StringEsc and else if in let match meta not or this": t.keyword,
+        "StringEsc and else if in let match meta not or this move": t.keyword,
         "OpName! FnIdent": t.name,
         [punctuation]: t.punctuation,
         "LineComment BlockComment": t.comment,
