@@ -1,5 +1,5 @@
 import { parser } from "./tql.grammar";
-import { LRLanguage, LanguageSupport } from "@codemirror/language";
+import { LRLanguage, LanguageSupport, foldNodeProp, foldInside } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 
 const punctuation = `"+" "-" "*" "/" "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
@@ -18,8 +18,22 @@ export const TenzirQueryLang = LRLanguage.define({
         [punctuation]: t.punctuation,
         "LineComment BlockComment": t.comment,
       }),
+      foldNodeProp.add({
+        "PipeExpr": foldInside,
+        "RecordStart": (node) => {
+          // Find the corresponding RecordRest to fold the entire record
+          let next = node.node.nextSibling;
+          while (next && next.name !== "RecordRest") {
+            next = next.nextSibling;
+          }
+          if (next) {
+            return { from: node.from + 1, to: next.to - 1 };
+          }
+          return null;
+        },
+        "BlockComment": (node) => ({ from: node.from + 2, to: node.to - 2 }),
+      }),
     ],
-    // TODO: add folding later
   }),
 });
 
