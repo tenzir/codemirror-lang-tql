@@ -109,7 +109,7 @@ every 1s {
 }
 deduplicate foo
 ==>
-Pipeline(OpStmt(OpName(Ident),Soup(Scalar,PipeExpr("{",OpStmt(OpName(Ident),Soup(Ident)),OpStmt(OpName(Ident),Soup(Ident)),"}"))),OpStmt(OpName(Ident),Soup(Ident)))
+Pipeline(OpStmt(OpName(Ident),Soup(Scalar,PipeExpr("{",OpStmt(ModuleIdent,OpName(Ident),Soup),OpStmt(OpName(Ident),Soup(Ident)),"}"))),OpStmt(OpName(Ident),Soup(Ident)))
 
 
 # Raw string literals
@@ -128,3 +128,9 @@ Pipeline(OpStmt(OpName(move),Soup(Ident,"=",Ident)))
 foo = move bar
 ==>
 Pipeline(AssignStmt(UnExpr(Ident),"=",Soup(move,Ident)))
+
+
+# Modules
+foo::bar baz::qux()
+==>
+Pipeline(OpStmt(ModuleIdent,OpName(Ident),Soup(ModuleIdent,FnIdent,"(",")")))

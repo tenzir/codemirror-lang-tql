@@ -2,7 +2,7 @@ import { parser } from "./tql.grammar";
 import { LRLanguage, LanguageSupport } from "@codemirror/language";
 import { styleTags, tags as t } from "@lezer/highlight";
 
-const punctuation = `"+" "-" "*" "/" "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
+const punctuation = `"+" "-" "*" "/" "=" "." "'" ":" "::" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
 
 export const TenzirQueryLang = LRLanguage.define({
   languageData: {
@@ -17,6 +17,7 @@ export const TenzirQueryLang = LRLanguage.define({
         "OpName! FnIdent": t.name,
         [punctuation]: t.punctuation,
         "LineComment BlockComment": t.comment,
+        ModuleIdent: t.variableName,
       }),
     ],
     // TODO: add folding later

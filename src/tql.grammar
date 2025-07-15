@@ -11,7 +11,7 @@ _Stmt {
   AssignStmt |
   (kw<"let"> | kw<"if"> | kw<"match">) Soup }
 
-OpStmt { OpName ~op_name ~op_name2 Soup }
+OpStmt { (ModuleIdent | "::")* OpName ~op_name ~op_name2 Soup }
 
 AssignStmt[@dynamicPrecedence=1] {
   UnExpr ~op_name2 "=" Soup
@@ -27,6 +27,7 @@ Soup { _Any* }
 
 // Anything but { } | and newline.
 _Any {
+  ModuleIdent |
   FnIdent |
   Ident |
   DollarIdent |
@@ -112,7 +113,7 @@ Pipe { "|" }
   Scalar { $[0-9]($[0-9] | "." | "_")* $[a-zA-Z0-9_]* }
   @precedence { LineComment "/" }
   "+" "-" "*" "/" "," "=" "." "'" ":" "!" "?" "<" ">"
-  "@" "%" "&" "#" ";" "^" "`"
+  "@" "%" "&" "#" ";" "^" "`" "::"
   stringContent { ![\\\"]+ }
   rawStringContent { !["]+ }
   rawStringDelimEnd { "\"#" }
@@ -158,7 +159,8 @@ String {
 @external tokens identifiers from "./tokens.ts" {
   Ident,
   FnIdent,
-  DollarIdent
+  DollarIdent,
+  ModuleIdent
 }
 
 kw<term> { @specialize[@name={term}]<Ident, term> }
