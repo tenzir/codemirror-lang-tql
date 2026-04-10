@@ -22,5 +22,10 @@
     "to-vfile": "^8.0.0",
     "unified": "^10.1.2",
     "vfile-reporter": "^8.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "diff": "5.2.2"
+    }
   }
 }
