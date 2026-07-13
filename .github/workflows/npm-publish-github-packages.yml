@@ -6,7 +6,7 @@ name: Node.js Package
 on:
   workflow_dispatch:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   publish-gpr:
@@ -15,14 +15,16 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: "24"
           registry-url: https://npm.pkg.github.com/
       - run: corepack enable
       - run: pnpm install
       - run: pnpm build
-      - run: pnpm publish
+      # Release events check out a detached HEAD, which pnpm's git checks
+      # refuse to publish from.
+      - run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{secrets.GITHUB_TOKEN}}
