@@ -9,6 +9,9 @@
   },
   "version": "0.4.7",
   "description": "Tenzir Query Language (TQL) support for CodeMirror",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "lezer-generator src/tql.grammar -o src/parser && rollup -c",
     "build-debug": "lezer-generator src/tql.grammar --names -o src/parser && rollup -c",
