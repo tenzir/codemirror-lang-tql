@@ -3,20 +3,25 @@ name: Publish to NPM
 on:
   workflow_dispatch:
   release:
-    types: [created]
+    types: [published]
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Required for npm trusted publishing (OIDC).
+      id-token: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
       - run: corepack enable
       - run: pnpm install
       - run: pnpm build
 
-      - uses: JS-DevTools/npm-publish@v3
-        with:
-          token: ${{ secrets.NPM_TOKEN }}
+      # Trusted publishing requires npm >= 11.5.1; the runner's bundled npm
+      # may be older.
+      - run: npm install -g npm@latest
+      - run: npm publish
