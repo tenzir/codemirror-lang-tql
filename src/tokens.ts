@@ -11,7 +11,8 @@ import {
   Comma,
   Ident,
   FnIdent,
-  DollarIdent
+  DollarIdent,
+  ModuleIdent,
 } from "./parser.terms.js"
 
 type ContextData = {
@@ -95,6 +96,8 @@ export const identifiers = new ExternalTokenizer((input, stack) => {
   }
   if (input.peek(n) == code("(")) {
     token = FnIdent;
+  } else if (input.peek(n) == code(":") && input.peek(n + 1) == code(":")) {
+    token = ModuleIdent;
   }
   input.acceptToken(token, n);
 })
