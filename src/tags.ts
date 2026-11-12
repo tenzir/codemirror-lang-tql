@@ -1,4 +1,4 @@
-import { type Highlighter, type Tag, tags as t } from "@lezer/highlight";
+import { type Highlighter, Tag, tags as t } from "@lezer/highlight";
 
 /**
  * The style tags that the highlight query's captures map to by default.
@@ -55,12 +55,31 @@ export const lookupCapture = <T>(
   }
 };
 
-/** The tag of a capture, if it has one, with `tags` over the defaults. */
+/** The modifier that marks a tag as coming from a capture, by capture name. */
+const modifiers = new Map<string, (tag: Tag) => Tag>();
+
+/** The capture name of a tag that `captureTag` returned. */
+const captureNames = new Map<Tag, string>();
+
+/**
+ * The tag of a capture, if it has one, with `tags` over the defaults. It is
+ * the capture's standard tag with a modifier for the capture, so standard
+ * highlighters fall back to the standard tag, while `tqlHighlighter` tells
+ * captures apart that share one.
+ */
 export const captureTag = (capture: string, tags: TqlCaptureTags = {}): Tag | undefined => {
   if (capture.startsWith("_")) return undefined;
-  const tag = lookupCapture(tags, capture);
-  if (tag !== undefined) return tag ?? undefined;
-  return lookupCapture(tqlCaptureTags, capture);
+  let tag = lookupCapture(tags, capture);
+  if (tag === undefined) tag = lookupCapture(tqlCaptureTags, capture);
+  if (!tag) return undefined;
+  let modifier = modifiers.get(capture);
+  if (modifier === undefined) {
+    modifier = Tag.defineModifier(`@${capture}`);
+    modifiers.set(capture, modifier);
+  }
+  const captured = modifier(tag);
+  captureNames.set(captured, capture);
+  return captured;
 };
 
 /**
@@ -70,27 +89,14 @@ export const captureTag = (capture: string, tags: TqlCaptureTags = {}): Tag | un
  * entry covers `function.call` and `function.method`. Unlike `tagHighlighter`,
  * this does not fall back to a tag's parents, so `function.call` never takes
  * the class of `variable`.
- *
- * Pass the same `tags` as to `tql` if you configured them there.
  */
-export const tqlHighlighter = (
-  classes: Readonly<Record<string, string>>,
-  tags: TqlCaptureTags = {},
-): Highlighter => {
-  // Captures that share a tag take the class of the most specific one.
-  const captures = [...new Set([...Object.keys(tqlCaptureTags), ...Object.keys(tags)])];
-  captures.sort((a, b) => a.split(".").length - b.split(".").length);
-  const byTag = new Map<Tag, string>();
-  for (const capture of captures) {
-    const tag = captureTag(capture, tags);
-    const cls = lookupCapture(classes, capture);
-    if (tag && cls) byTag.set(tag, cls);
-  }
+export const tqlHighlighter = (classes: Readonly<Record<string, string>>): Highlighter => {
   return {
     style: (styles) => {
       let result: string | null = null;
       for (const tag of styles) {
-        const cls = byTag.get(tag);
+        const capture = captureNames.get(tag);
+        const cls = capture === undefined ? undefined : lookupCapture(classes, capture);
         if (cls) result = result ? `${result} ${cls}` : cls;
       }
       return result;

@@ -96,10 +96,7 @@ function tql(treeSitter: TqlTreeSitter, options?: TqlOptions): LanguageSupport;
 
 function loadTql(options: LoadTqlOptions): Promise<LanguageSupport>;
 
-function tqlHighlighter(
-  classes: Readonly<Record<string, string>>,
-  tags?: TqlCaptureTags,
-): Highlighter;
+function tqlHighlighter(classes: Readonly<Record<string, string>>): Highlighter;
 
 const tqlCaptureTags: Readonly<Record<string, Tag>>;
 
@@ -167,22 +164,24 @@ string, and of two captures of the same node, the later pattern wins. Nodes
 inside a captured node without a capture of their own take its tag, so a whole
 format string is a string except where its parts say otherwise.
 
-Any `@lezer/highlight` highlighter works, like `HighlightStyle` or
-`classHighlighter`. `tqlHighlighter(classes)` styles by capture name instead,
-the way tree-sitter themes do: `classes` maps a capture to a CSS class, and an
-entry also covers the captures that refine it, so `function` covers
-`function.call` and `function.method`. Unlike `tagHighlighter`, it does not
-fall back from a tag to its parents.
+A node's tag is the tag of its capture with a modifier naming the capture,
+so captures that share a tag, like `function` and `function.call`, stay
+distinct. Any `@lezer/highlight` highlighter works, like `HighlightStyle` or
+`classHighlighter`, and falls back to the tags in the table.
+`tqlHighlighter(classes)` styles by capture name instead, the way tree-sitter
+themes do: `classes` maps a capture to a CSS class, and an entry also covers the
+captures that refine it, so `function` covers `function.call` and
+`function.method` unless they have entries of their own. Unlike
+`tagHighlighter`, it does not fall back from a tag to its parents.
 
 A tree-sitter theme that leaves a capture unstyled shows the color of the node
 around it, such as the parentheses of a call inside a format string. To do the
-same, map such captures to `null` and pass the same `tags` to both functions:
+same, map such captures to `null`:
 
 ```ts
-const tags = { punctuation: null };
 const extensions = [
-  tql({ Parser, Query, language }, { tags }),
-  syntaxHighlighting(tqlHighlighter(classes, tags)),
+  tql({ Parser, Query, language }, { tags: { punctuation: null } }),
+  syntaxHighlighting(tqlHighlighter(classes)),
 ];
 ```
 

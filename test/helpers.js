@@ -34,7 +34,7 @@ export const captureClasses = Object.fromEntries(
 export const highlight = (text, classes = captureClasses, tags = undefined) => {
   const spans = [];
   const tree = parse(text, tags === undefined ? support : makeSupport({ tags }));
-  highlightTree(tree, tqlHighlighter(classes, tags), (from, to, cls) => {
+  highlightTree(tree, tqlHighlighter(classes), (from, to, cls) => {
     spans.push([text.slice(from, to), cls]);
   });
   return spans;
@@ -43,7 +43,7 @@ export const highlight = (text, classes = captureClasses, tags = undefined) => {
 /** The class of every UTF-16 code unit of `text`, as the editor shows it. */
 export const paintLezer = (text, classes, tags, tree) => {
   const painted = new Array(text.length).fill("");
-  highlightTree(tree, tqlHighlighter(classes, tags), (from, to, cls) => {
+  highlightTree(tree, tqlHighlighter(classes), (from, to, cls) => {
     painted.fill(cls, from, to);
   });
   return painted;

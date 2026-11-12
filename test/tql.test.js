@@ -390,6 +390,22 @@ describe("highlighting", () => {
     ]);
   });
 
+  it("tells apart captures that share a tag", () => {
+    const custom = makeSupport({
+      highlights: "(identifier) @function\n(number) @function.call\n(string) @function.builtin",
+      indents: "",
+      folds: "",
+    });
+    const text = 'x = 1 + "a"';
+    const spans = [];
+    const classes = { function: "fn", "function.call": "call", "function.builtin": "builtin" };
+    highlightTree(custom.language.parser.parse(text), tqlHighlighter(classes), (from, to, cls) => {
+      spans.push([text.slice(from, to), cls]);
+    });
+    assert.deepEqual(spans, [["x", "fn"], ["1", "call"], ['"a"', "builtin"]]);
+    custom.language.parser.delete();
+  });
+
   it("lets captures show the color around them when left out", () => {
     const text = 'x = f"{g(1, 2)}"';
     assert.deepEqual(highlight(text, platformClasses), [
