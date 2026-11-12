@@ -10,7 +10,7 @@ import {
 } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { classHighlighter, highlightTree, tags as t } from "@lezer/highlight";
-import { parser as yamlParser } from "@lezer/yaml";
+import { yamlLanguage } from "@codemirror/lang-yaml";
 import { tqlCaptureTags, tqlHighlighter, tqlQueries } from "../dist/index.js";
 import {
   TreeSitter,
@@ -132,7 +132,7 @@ describe("tree conversion", () => {
   });
 
   it("parses the body of front matter with a nested parser", () => {
-    const yaml = makeSupport({ frontmatter: yamlParser });
+    const yaml = makeSupport({ frontmatter: yamlLanguage.parser });
     const text = "---\nname: x\n---\nfrom y";
     const state = EditorState.create({ doc: text, extensions: [yaml] });
     const spans = [];
@@ -146,6 +146,22 @@ describe("tree conversion", () => {
       ["---\n", "tok-comment"],
       ["from", "tok-variableName"],
     ]);
+    yaml.language.parser.delete();
+  });
+
+  it("edits the body of front matter as YAML", () => {
+    const yaml = makeSupport({ frontmatter: yamlLanguage.parser });
+    let state = EditorState.create({
+      doc: "---\nname: x\nlist: [\n---\nfrom y",
+      selection: { anchor: 5 },
+      extensions: [yaml],
+    });
+    toggleComment({ state, dispatch: (tr) => (state = tr.state) });
+    assert.equal(state.doc.toString(), "---\n# name: x\nlist: [\n---\nfrom y");
+    // A new line in a flow sequence is indented as YAML does.
+    state = state.update({ selection: { anchor: state.doc.line(3).to } }).state;
+    insertNewlineAndIndent({ state, dispatch: (tr) => (state = tr.state) });
+    assert.equal(state.doc.line(4).text, "  ");
     yaml.language.parser.delete();
   });
 

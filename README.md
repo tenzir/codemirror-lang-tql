@@ -116,7 +116,7 @@ interface TqlOptions {
   indents?: string; // indent query, tree-sitter-tql's by default
   folds?: string; // fold query, tree-sitter-tql's by default
   tags?: TqlCaptureTags; // capture tags over the defaults
-  frontmatter?: Parser; // a Lezer parser for the body of front matter
+  frontmatter?: Parser; // e.g. yamlLanguage.parser for the front matter body
 }
 
 interface LoadTqlOptions extends TqlOptions {
@@ -211,13 +211,17 @@ const extensions = [
 ## Front matter
 
 TQL files may start with YAML front matter between `---` fences. The fences
-highlight as comments. To edit the body as YAML, pass a YAML parser:
+highlight as comments. To edit the body as YAML, pass the parser of
+`@codemirror/lang-yaml`'s language, which brings YAML's highlighting,
+indentation, and `#` comments:
 
 ```ts
-import { parser as yamlParser } from "@lezer/yaml";
+import { yamlLanguage } from "@codemirror/lang-yaml";
 
-const tqlSupport = tql({ Parser, Query, language }, { frontmatter: yamlParser });
+const tqlSupport = tql({ Parser, Query, language }, { frontmatter: yamlLanguage.parser });
 ```
+
+The bare parser of `@lezer/yaml` only highlights the body.
 
 ## Lifetime and performance
 

@@ -34,8 +34,9 @@ export interface TqlOptions {
    */
   readonly tags?: TqlCaptureTags;
   /**
-   * A parser for the body of front matter, such as YAML's from
-   * `@codemirror/lang-yaml`, which then highlights and edits it as YAML.
+   * A parser for the body of front matter. `yamlLanguage.parser` from
+   * `@codemirror/lang-yaml` highlights and edits it as YAML; the bare parser
+   * of `@lezer/yaml` only highlights it.
    */
   readonly frontmatter?: Parser;
 }
