@@ -9,6 +9,7 @@ import {
   syntaxTree,
 } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
+import { parseMixed } from "@lezer/common";
 import { classHighlighter, highlightTree, tags as t } from "@lezer/highlight";
 import { yamlLanguage } from "@codemirror/lang-yaml";
 import { tqlCaptureTags, tqlHighlighter, tqlQueries } from "../dist/index.js";
@@ -170,6 +171,22 @@ describe("tree conversion", () => {
     const tree = support.language.parser.parse(text, [], [{ from: 5, to: text.length }]);
     assert.equal(tree.length, 6);
     assert.equal(tree.toString(), "program(pipeline(statement(invocation(entity(identifier),arguments(argument(expression(primary_expression(identifier))))))))");
+  });
+
+  it("ignores the gaps between ranges", () => {
+    const text = 'x = "XX1';
+    const tree = support.language.parser.parse(text, [], [{ from: 0, to: 4 }, { from: 7, to: 8 }]);
+    assert.equal(tree.resolveInner(7, 1).name, "number");
+    // In an overlay of an outer language, which owns the gaps.
+    const outer = yamlLanguage.parser.configure({
+      wrap: parseMixed((node) => {
+        if (node.name !== "Document") return null;
+        return { parser: support.language.parser, overlay: [{ from: 3, to: 7 }, { from: 18, to: 19 }] };
+      }),
+    });
+    const yaml = 'a: x = \nb: "XX\nc: 1';
+    const inner = outer.parse(yaml).resolveInner(18, 1);
+    assert.equal(inner.name, "number");
   });
 
   it("does not throw on malformed input", () => {

@@ -259,8 +259,8 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
   that names a node type the loaded grammar lacks does not compile, and `tql()`
   throws. With a different version of the grammar, pass its queries as
   `highlights`, `indents`, and `folds`, for example as Vite `?raw` imports.
-- A nested parse over several ranges parses the text from the first range's
-  start to the last range's end, gaps included.
+- A nested parse over several ranges sees the gaps between them as spaces, so
+  a token cannot continue across a gap.
 - Recognizing strings that are not closed yet looks at the text around quotes
   that tree-sitter did not parse as part of a string, so it knows TQL's quote
   and prefix rules. Of several such strings, the first one wins.

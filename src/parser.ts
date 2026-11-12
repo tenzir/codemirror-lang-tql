@@ -433,6 +433,20 @@ class Conversion {
 }
 
 /**
+ * The text from the first range's start to the last range's end, with the
+ * gaps between ranges, which belong to another language, blanked out.
+ */
+const readRanges = (input: Input, ranges: readonly { from: number; to: number }[]): string => {
+  if (ranges.length === 0) return input.read(0, input.length);
+  let text = "";
+  for (let i = 0; i < ranges.length; i++) {
+    if (i > 0) text += " ".repeat(ranges[i].from - ranges[i - 1].to);
+    text += input.read(ranges[i].from, ranges[i].to);
+  }
+  return text;
+};
+
+/**
  * A Lezer parser that parses TQL with tree-sitter-tql and converts the result
  * into a Lezer tree, so that CodeMirror's highlighting, bracket matching,
  * indentation, folding, and commands work from TQL's tree-sitter grammar.
@@ -463,11 +477,8 @@ export class TqlParser extends Parser {
     fragments: readonly TreeFragment[],
     ranges: readonly { from: number; to: number }[],
   ): PartialParse {
-    // A parse of several ranges, as in a nested language, parses the text
-    // from the first range's start to the last range's end.
     const from = ranges.length ? ranges[0].from : 0;
-    const to = ranges.length ? ranges[ranges.length - 1].to : input.length;
-    const parse = new TqlParse(() => this.#run(input.read(from, to)), from);
+    const parse = new TqlParse(() => this.#run(readRanges(input, ranges)), from);
     return this.#wrapper ? this.#wrapper(parse, input, fragments, ranges) : parse;
   }
 
