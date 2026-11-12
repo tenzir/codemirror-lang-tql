@@ -476,6 +476,13 @@ describe("quote pairing", () => {
     assert.equal(insert('x = f"{g("a")} b', '"'), null);
   });
 
+  it("does not pair a quote that closes a raw string", () => {
+    for (const prefix of ["r", "r#", "r##", "br###", "r########"]) {
+      assert.equal(insert(`x = ${prefix}"abc, `, '"'), null, prefix);
+      assert.equal(insert(`x = ${prefix}`, '"'), `x = ${prefix}""`, prefix);
+    }
+  });
+
   it("steps over the quote it inserted", () => {
     const paired = insertBracket(stateOf("x = ", closeBrackets()), '"').state;
     const stepped = insertBracket(paired, '"').state;

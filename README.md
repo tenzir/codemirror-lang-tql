@@ -189,7 +189,8 @@ const extensions = [
 ## Editing
 
 - **Quote pairing:** `closeBrackets()` pairs `(`, `[`, `{`, `"`, and `'`, also
-  after the string prefixes `f`, `b`, `r`, and `br`. Tree-sitter only lexes a
+  after the string prefixes `f` and `b`, and the raw prefixes `r` and `br`
+  with up to 8 `#`. Tree-sitter only lexes a
   string once it is closed; until then, it sees an error at the quote and
   parses what follows as code. The bridge turns the first quote that has no
   closing quote into a string that runs to the end of the document, as TQL's

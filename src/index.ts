@@ -16,6 +16,10 @@ export const tqlQueries: {
   readonly folds: string;
 } = { highlights, indents, folds };
 
+const rawPrefixes = ["r", "br"].flatMap((prefix) => {
+  return Array.from({ length: 9 }, (_, hashes) => prefix + "#".repeat(hashes));
+});
+
 /** How `tql` sets up the language. */
 export interface TqlOptions {
   /** The highlight query; tree-sitter-tql's `highlights.scm` by default. */
@@ -53,7 +57,8 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
     commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
     closeBrackets: {
       brackets: ["(", "[", "{", '"', "'"],
-      stringPrefixes: ["f", "b", "r", "br", "r#", "br#"],
+      // Raw strings take up to 8 hashes, as in tree-sitter-tql.
+      stringPrefixes: ["f", "b", ...rawPrefixes],
     },
     indentOnInput: /^\s*[}\]]$/,
   });
