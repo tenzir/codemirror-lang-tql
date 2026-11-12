@@ -30,7 +30,12 @@ export default [
   {
     input: "src/index.ts",
     external,
-    output: { file: "dist/index.d.ts", format: "es" },
+    // CommonJS consumers need declarations of their own, which TypeScript
+    // looks up next to `index.cjs`.
+    output: [
+      { file: "dist/index.d.ts", format: "es" },
+      { file: "dist/index.d.cts", format: "es" },
+    ],
     plugins: [queries(), dts()],
   },
 ];

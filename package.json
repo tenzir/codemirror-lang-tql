@@ -20,18 +20,15 @@
   ],
   "scripts": {
     "build": "rollup -c",
-    "test": "node --test test/*.test.js"
+    "test": "node --test test/*.test.js && tsc -p test/types"
   },
   "type": "module",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    }
+    "import": "./dist/index.js",
+    "require": "./dist/index.cjs"
   },
   "sideEffects": false,
   "peerDependencies": {
