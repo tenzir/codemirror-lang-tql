@@ -140,9 +140,29 @@ const stringAt = (text: string, quote: number): { from: number; to: number | nul
   }
   let from = quote;
   if (hashes === 0 && at > 0 && "bf".includes(text[at - 1]) && boundary(at - 1)) from = at - 1;
+  // A format string's replacements are expressions, whose strings may hold
+  // quotes of their own.
+  const format = text[from] === "f";
+  let depth = 0;
   for (let pos = quote + 1; pos < text.length; pos++) {
-    if (text[pos] === "\\") pos++;
-    else if (text[pos] === text[quote]) return { from, to: pos + 1 };
+    const char = text[pos];
+    if (depth > 0) {
+      if (char === "{") depth++;
+      else if (char === "}") depth--;
+      else if (char === '"' || char === "'") {
+        const inner = stringAt(text, pos).to;
+        if (inner === null) return { from, to: null };
+        pos = inner - 1;
+      }
+    } else if (char === "\\") {
+      pos++;
+    } else if (format && (char === "{" || char === "}") && text[pos + 1] === char) {
+      pos++;
+    } else if (format && char === "{") {
+      depth++;
+    } else if (char === text[quote]) {
+      return { from, to: pos + 1 };
+    }
   }
   return { from, to: null };
 };
