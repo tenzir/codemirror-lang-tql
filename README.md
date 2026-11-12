@@ -224,15 +224,16 @@ The bare parser of `@lezer/yaml` only highlights the body.
 
 ## Lifetime and performance
 
-Each parse runs tree-sitter on the whole document, converts the whole tree,
-and frees the tree-sitter tree right away, also when something fails, so no
-tree outlives a parse. This takes a few milliseconds for a typical pipeline
-and about 15 ms for a 30 KB file. Reusing the previous tree with
-`Tree.edit()` would need the edits, which Lezer's fragments only hint at, and
-would keep a tree alive in WebAssembly memory between parses.
+Each parse runs tree-sitter on the whole document and converts the whole
+tree, which takes a few milliseconds for a typical pipeline and about 15 ms
+for a 32 KB file. Parses work in steps of a few milliseconds and stop where
+CodeMirror asks them to, such as at the end of the viewport, so a large
+document does not block the editor: CodeMirror parses the rest in the
+background. A parse frees its tree-sitter tree when it finishes or fails.
 
-The language owns a tree-sitter parser and three queries, which live in
-WebAssembly memory until you free them:
+The language owns a tree-sitter parser and its queries, which live in
+WebAssembly memory until you free them, along with the trees of up to four
+parses that CodeMirror dropped halfway:
 
 ```ts
 import type { TqlParser } from "@tenzir/codemirror-lang-tql";
@@ -263,6 +264,8 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
 - Recognizing strings that are not closed yet looks at the text around quotes
   that tree-sitter did not parse as part of a string, so it knows TQL's quote
   and prefix rules. Of several such strings, the first one wins.
+- Around syntax errors, tree-sitter may recover differently when it resumes a
+  parse that yielded than when it parses the whole document at once.
 
 ## Development
 
