@@ -58,10 +58,12 @@ export interface TqlOptions {
  *
  * Takes web-tree-sitter's classes and the grammar the host loaded, after
  * `Parser.init()` and `Language.load()`, so the host decides where the
- * WebAssembly comes from and when it loads. The language owns a tree-sitter
- * parser and queries, which live in WebAssembly memory until
- * `(support.language.parser as TqlParser).delete()` frees them, so create it
- * once and share it between editors.
+ * WebAssembly comes from and when it loads. Each parse owns a native parser
+ * and tree and frees them when its work finishes. The language owns the
+ * combined query, which lives in WebAssembly memory until
+ * `(support.language.parser as TqlParser).delete()` frees it along with any
+ * unfinished parses, so create the language once and share it between
+ * editors.
  */
 export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): LanguageSupport {
   const data = defineLanguageFacet({
