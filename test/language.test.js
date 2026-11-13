@@ -182,6 +182,11 @@ describe("quote pairing", () => {
     assert.equal(insert("x = r########\"abc, ", '"'), null);
   });
 
+  it("ignores braces in comments of a format string's replacement", () => {
+    assert.equal(insert('x = f"{g(/* } */ "abc, ', '"'), null);
+    assert.equal(insert('x = f"{g(// }\n "abc, ', '"'), null);
+  });
+
   it("steps over the quote it inserted", () => {
     const paired = insertBracket(stateOf("x = ", closeBrackets()), '"').state;
     const stepped = insertBracket(paired, '"').state;

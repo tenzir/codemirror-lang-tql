@@ -140,8 +140,8 @@ const stringAt = (text: string, quote: number): { from: number; to: number | nul
   }
   let from = quote;
   if (hashes === 0 && at > 0 && "bf".includes(text[at - 1]) && boundary(at - 1)) from = at - 1;
-  // A format string's replacements are expressions, whose strings may hold
-  // quotes of their own.
+  // A format string's replacements are expressions, whose strings and
+  // comments may hold quotes and braces of their own.
   const format = text[from] === "f";
   let depth = 0;
   for (let pos = quote + 1; pos < text.length; pos++) {
@@ -153,6 +153,14 @@ const stringAt = (text: string, quote: number): { from: number; to: number | nul
         const inner = stringAt(text, pos).to;
         if (inner === null) return { from, to: null };
         pos = inner - 1;
+      } else if (text.startsWith("//", pos)) {
+        const end = text.indexOf("\n", pos);
+        if (end < 0) return { from, to: null };
+        pos = end;
+      } else if (text.startsWith("/*", pos)) {
+        const end = text.indexOf("*/", pos + 2);
+        if (end < 0) return { from, to: null };
+        pos = end + 1;
       }
     } else if (char === "\\") {
       pos++;
