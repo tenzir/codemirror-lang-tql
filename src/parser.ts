@@ -169,7 +169,7 @@ class ParseResources {
 
 /** The node types, captures, and queries of one TQL parser. */
 class Grammar {
-  /** The highlight, indent, and fold queries in one, which runs faster. */
+  /** All queries in one, which runs faster. */
   readonly query: TreeSitter.Query;
   /** Sibling patterns start one level below the parent that contains them. */
   readonly queryDepth: number;

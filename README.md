@@ -268,9 +268,9 @@ from `#set! injection.language`, not from `@injection.language` captures.
 Each parse runs tree-sitter on the document, or the prefix where CodeMirror
 asks it to stop, without reusing an earlier tree. A generator yields between
 steps targeting 4 ms, so CodeMirror can continue parsing in the background.
-The combined highlight, indent, and fold query runs on small subtrees; larger
-subtrees are queried one level at a time instead of repeatedly querying their
-enclosing nodes.
+The queries run combined into one, on small subtrees; larger subtrees are
+queried one level at a time instead of repeatedly querying their enclosing
+nodes.
 
 Each parse owns its native parser and tree and frees them as soon as their
 work finishes, also on errors. CodeMirror has no cancellation hook for parses
