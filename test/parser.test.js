@@ -57,7 +57,7 @@ describe("tree conversion", () => {
     parser.setLanguage(language);
     const original = parser.parse(example);
     // One Lezer node per visible tree-sitter node, plus the top.
-    assert.equal(count(tree), original.rootNode.descendantCount);
+    assert.equal(count(tree), original.rootNode.descendantCount + 1);
     original.delete();
     parser.delete();
     const at = example.indexOf('"zeek.conn"');
@@ -208,6 +208,7 @@ describe("parsing in steps", () => {
     const text = "x = 1\ny = 2\nz = 3\n".repeat(30);
     for (const highlights of [
       "(pipeline) @string\n(identifier) @keyword",
+      "(program) @string\n(number) @number",
       "(pipeline (statement) @keyword)",
       "((statement) @keyword . (statement) @string)",
     ]) {
@@ -435,7 +436,7 @@ describe("resources", () => {
       throw new Error("boom");
     });
     const tree = parse("from x");
-    assert.equal(tree.toString(), "program");
+    assert.equal(tree.toString(), "tql");
     assert.equal(tree.length, 6);
     assert.equal(error.mock.callCount(), 1);
     assert.equal(live.size, 0);
@@ -451,9 +452,8 @@ describe("resources", () => {
       });
     }
     const support = makeSupport();
-    // The temporary highlight query supplies capture names and the pattern
-    // boundary, the temporary parser the name of the root.
-    assert.deepEqual(deleted.sort(), ["Parser", "Query"]);
+    // The temporary highlight query supplies capture names and the pattern boundary.
+    assert.deepEqual(deleted, ["Query"]);
     deleted.length = 0;
     parse(example, support);
     support.language.parser.delete();

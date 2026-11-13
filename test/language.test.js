@@ -338,6 +338,12 @@ describe("front matter", () => {
       assert.deepEqual(frontMatter(state), [["---\n", "tok-comment"], ["---\n", "tok-comment"]]);
       support.language.parser.delete();
     }
+    // Into the root, too.
+    const injections = '((program) @injection.content (#set! injection.language "yaml"))';
+    const support = makeSupport({ injections, nested: { yaml: yamlLanguage.parser } });
+    const state = EditorState.create({ doc: "name: x", extensions: [support] });
+    assert.equal(syntaxTree(state).resolveInner(1, 1).name, "Literal");
+    support.language.parser.delete();
   });
 });
 
