@@ -1,6 +1,6 @@
 # @tenzir/codemirror-lang-tql
 
-[Tenzir Query Language (TQL)](https://docs.tenzir.com/tql2) support for
+[Tenzir Query Language (TQL)](https://docs.tenzir.com/explanations/language) support for
 [CodeMirror 6](https://codemirror.net), backed by
 [tree-sitter-tql](https://github.com/tenzir/tree-sitter-tql), the grammar that
 Zed, VS Code, and Neovim use as well.
@@ -133,6 +133,11 @@ const tqlQueries: {
   brackets: string;
   injections: string;
 };
+
+// The type of `support.language.parser`.
+class TqlParser extends Parser {
+  delete(): void; // frees the combined query and unfinished parses
+}
 
 interface TqlTreeSitter {
   Parser: typeof import("web-tree-sitter").Parser; // after Parser.init()
