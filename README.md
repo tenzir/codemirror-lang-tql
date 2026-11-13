@@ -89,6 +89,28 @@ It imports web-tree-sitter on demand and only initializes it when nothing
 initialized it before, since initializing it again would invalidate grammars
 that the host loaded already.
 
+## Migrating from 0.4
+
+0.5 replaces the hand-written Lezer grammar with tree-sitter-tql, which loads
+asynchronously:
+
+- `TQL()` and `TenzirQueryLang` are gone. Create the language support once with
+  `await loadTql({ runtimeWasmUrl, grammarWasmUrl })`, or load web-tree-sitter
+  yourself and call `tql({ Parser, Query, language })`, and share it between
+  editors. Until it has loaded, editors can run without it.
+- Instead of `TenzirQueryLang.parser`, use `support.language.parser`, for
+  example to highlight read-only views with `highlightTree`. It only exists
+  once the grammar loaded.
+- Highlighting uses the tags of the [capture mapping](#highlighting) instead
+  of the coarse tags of 0.4. A `HighlightStyle` for those still matches most
+  nodes, since functions and attributes fall back to `name` and numbers and
+  booleans to `literal`, but operators are now `operator` rather than
+  `punctuation`, `null` falls back to `keyword` rather than `literal`, and `$`
+  variables to `name`. Check your style, or style by capture name with
+  `tqlHighlighter(classes)`.
+- Install `web-tree-sitter` and `tree-sitter-tql` and serve their `.wasm`
+  files, for example with Vite's `?url` imports.
+
 ## API
 
 ```ts
