@@ -234,6 +234,37 @@ describe("parsing in steps", () => {
     support.language.parser.delete();
   });
 
+  it("bounds query work on wide lists", () => {
+    const support = makeSupport();
+    const text = `x = [${"1,".repeat(50000)}1]`;
+    // Each query covers a bounded part of the list, never all of its items.
+    let most = 0;
+    const spies = ["matches", "captures"].map((method) => {
+      const original = TreeSitter.Query.prototype[method];
+      return mock.method(TreeSitter.Query.prototype, method, function (...args) {
+        const result = original.apply(this, args);
+        most = Math.max(most, result.length);
+        return result;
+      });
+    });
+    try {
+      const parse = support.language.parser.startParse(text);
+      let longest = 0;
+      let tree;
+      while (!tree) {
+        const start = performance.now();
+        tree = parse.advance();
+        longest = Math.max(longest, performance.now() - start);
+      }
+      assert.equal(tree.length, text.length);
+      assert.ok(most < 2000, `${most} matches in one query`);
+      assert.ok(longest < 250, `longest step ${longest} ms`);
+    } finally {
+      for (const spy of spies) spy.mock.restore();
+      support.language.parser.delete();
+    }
+  });
+
   it("recovers an unterminated string inside deeply nested lists", () => {
     const error = mock.method(console, "error", () => {});
     try {
@@ -400,7 +431,7 @@ describe("resources", () => {
   it("frees tree-sitter trees when converting them fails", () => {
     const live = track();
     const error = mock.method(console, "error", () => {});
-    mock.method(TreeSitter.Query.prototype, "captures", () => {
+    mock.method(TreeSitter.Query.prototype, "matches", () => {
       throw new Error("boom");
     });
     const tree = parse("from x");

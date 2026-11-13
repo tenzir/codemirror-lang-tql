@@ -268,9 +268,12 @@ from `#set! injection.language`, not from `@injection.language` captures.
 Each parse runs tree-sitter on the document, or the prefix where CodeMirror
 asks it to stop, without reusing an earlier tree. A generator yields between
 steps targeting 4 ms, so CodeMirror can continue parsing in the background.
-The queries run combined into one, on small subtrees; larger subtrees are
-queried one level at a time instead of repeatedly querying their enclosing
-nodes.
+The queries run combined into one, on subtrees of up to 256 nodes; larger
+subtrees are queried one level at a time instead of repeatedly querying their
+enclosing nodes. Sibling patterns, like the bracket pairs of `brackets.scm`,
+only match among the children of nodes with up to 256 children, so a list of
+thousands of items keeps each step short but loses the bracket props of its
+own brackets, which still match by name.
 
 Each parse owns its native parser and tree and frees them as soon as their
 work finishes, also on errors. CodeMirror has no cancellation hook for parses
@@ -309,8 +312,8 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
 - Around syntax errors, tree-sitter may recover differently when it resumes a
   parse that yielded than when it parses the whole document at once.
 - The 4 ms target is not a hard deadline. Custom queries that match many
-  descendants or siblings, large individual tokens, and garbage collection
-  can make a step take longer.
+  descendants, large individual tokens, freeing the native tree of a document
+  with a million nodes, and garbage collection can make a step take longer.
 - Cleanup of abandoned parses depends on garbage collection and is not
   immediate. Call `delete()` when retiring the language to free all native
   handles deterministically.

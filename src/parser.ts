@@ -44,6 +44,12 @@ export interface TqlQueries {
 
 type LanguageData = ReturnType<typeof defineLanguageFacet>;
 
+/**
+ * The most nodes that one query covers: the descendants of a subtree queried
+ * at once, or the children among which sibling patterns match.
+ */
+const QUERY_SIZE = 256;
+
 /** The type id tree-sitter gives error nodes. */
 const ERROR_TYPE = 0xffff;
 
@@ -242,32 +248,52 @@ class Grammar {
     resources.delete();
   }
 
+  /**
+   * Runs the queries on all of a small subtree at once. On a larger one, it
+   * runs the patterns that start at `node` and, unless it has too many
+   * children for one step, the sibling patterns among them. Returns whether
+   * the queries covered the whole subtree.
+   */
+  captureAt(node: TreeSitter.Node, captured: Map<number, Captured>): boolean {
+    if (node.descendantCount <= QUERY_SIZE) {
+      this.capture(node, {}, captured);
+      return true;
+    }
+    const maxStartDepth = node.childCount <= QUERY_SIZE ? this.queryDepth : 0;
+    this.capture(node, { maxStartDepth }, captured);
+    return false;
+  }
+
   /** Runs the queries on `node` and records what they capture on nodes. */
   capture(node: TreeSitter.Node, options: TreeSitter.QueryOptions, captured: Map<number, Captured>) {
-    for (const { name, node: target, patternIndex, setProperties } of this.query.captures(node, options)) {
-      if (patternIndex >= this.#indents) {
-        const injection = name === "injection.content" && setProperties?.["injection.language"];
-        if (injection) capturedAt(captured, target.id).injection = injection;
-        const flags = captureFlags[name];
-        if (!flags) continue;
-        const entry = capturedAt(captured, target.id);
-        entry.flags |= flags;
-        if (flags & (OPEN | CLOSE)) {
-          // Each bracket pattern pairs one opening and one closing token.
-          let pair = this.#pairs.get(patternIndex);
-          if (pair === undefined) this.#pairs.set(patternIndex, (pair = {}));
-          pair[name as "open" | "close"] = target.type;
-          entry.bracket = patternIndex;
+    // Unlike captures, matches need not wait for earlier matches to finish,
+    // which would buffer all of a wide node behind its opening bracket.
+    for (const { patternIndex, captures, setProperties } of this.query.matches(node, options)) {
+      for (const { name, node: target } of captures) {
+        if (patternIndex >= this.#indents) {
+          const injection = name === "injection.content" && setProperties?.["injection.language"];
+          if (injection) capturedAt(captured, target.id).injection = injection;
+          const flags = captureFlags[name];
+          if (!flags) continue;
+          const entry = capturedAt(captured, target.id);
+          entry.flags |= flags;
+          if (flags & (OPEN | CLOSE)) {
+            // Each bracket pattern pairs one opening and one closing token.
+            let pair = this.#pairs.get(patternIndex);
+            if (pair === undefined) this.#pairs.set(patternIndex, (pair = {}));
+            pair[name as "open" | "close"] = target.type;
+            entry.bracket = patternIndex;
+          }
+          continue;
         }
-        continue;
-      }
-      const capture = this.captures.get(name);
-      if (capture === undefined) continue;
-      const entry = capturedAt(captured, target.id);
-      // Of two captures of the same node, the later pattern wins.
-      if (entry.capture < 0 || patternIndex >= entry.pattern) {
-        entry.capture = capture;
-        entry.pattern = patternIndex;
+        const capture = this.captures.get(name);
+        if (capture === undefined) continue;
+        const entry = capturedAt(captured, target.id);
+        // Of two captures of the same node, the later pattern wins.
+        if (entry.capture < 0 || patternIndex >= entry.pattern) {
+          entry.capture = capture;
+          entry.pattern = patternIndex;
+        }
       }
     }
   }
@@ -456,11 +482,11 @@ class TqlParse implements PartialParse {
       parser = resources.parser = null;
 
       const captured = new Map<number, Captured>();
-      let queriedDepth = Infinity;
       cursor = resources.cursor = tree.walk();
       // An error at the root becomes a node of its own.
       const inlineRoot = cursor.nodeTypeId !== ERROR_TYPE;
-      if (inlineRoot) grammar.capture(tree.rootNode, { maxStartDepth: grammar.queryDepth }, captured);
+      // The depth up to which nodes are queried as the walk enters them.
+      let queriedDepth = inlineRoot && grammar.captureAt(tree.rootNode, captured) ? 0 : Infinity;
       const frames: Frame[] = [{
         type: grammar.top,
         from: 0,
@@ -493,14 +519,10 @@ class TqlParse implements PartialParse {
         if (cursor.nodeIsMissing) {
           add(new Tree(grammar.type(ERROR_TYPE, () => "⚠", -1), [], [], 0), from);
         } else {
-          // Query small subtrees once. For larger ones, query only patterns
-          // rooted here (and sibling patterns, if any), then visit children.
+          // Query small subtrees once. For larger ones, query the node, then
+          // visit its children.
           if (frames.length <= queriedDepth) {
-            const node = cursor.currentNode;
-            queriedDepth = node.descendantCount <= 256 ? frames.length : Infinity;
-            grammar.capture(node, {
-              maxStartDepth: queriedDepth === Infinity ? grammar.queryDepth : undefined,
-            }, captured);
+            queriedDepth = grammar.captureAt(cursor.currentNode, captured) ? frames.length : Infinity;
           }
           const entry = captured.get(cursor.nodeId);
           const parent = frames[frames.length - 1];
