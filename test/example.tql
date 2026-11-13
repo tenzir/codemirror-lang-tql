@@ -30,6 +30,7 @@ if orig_bytes? > 1Mi {
 }
 marker = b"\x00\x01"
 gateway = 192.168.0.1
+seen = 2024-01-01T00:00:00Z
 greeting = "Grüße 👋 (from the edge)"
 watched = $ports.where(port => port < 1024)
 summary = {host: id.orig_h, ports: watched, ratio: 2.5e3}

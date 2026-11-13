@@ -174,13 +174,18 @@ The highlight query's captures become these tags (`tqlCaptureTags`):
 | `attribute`             | `tags.attributeName`               |
 | `function`              | `tags.function(tags.variableName)` |
 | `function.call`         | `tags.function(tags.variableName)` |
+| `function.operator`     | `tags.function(tags.variableName)` |
 | `function.method`       | `tags.function(tags.propertyName)` |
 | `string`                | `tags.string`                      |
 | `string.escape`         | `tags.escape`                      |
 | `string.special`        | `tags.special(tags.string)`        |
 | `number`                | `tags.number`                      |
+| `number.time`           | `tags.number`                      |
+| `number.duration`       | `tags.number`                      |
 | `boolean`               | `tags.bool`                        |
 | `constant`              | `tags.constant(tags.name)`         |
+| `constant.ip`           | `tags.constant(tags.name)`         |
+| `constant.subnet`       | `tags.constant(tags.name)`         |
 | `constant.builtin`      | `tags.null`                        |
 | `variable`              | `tags.variableName`                |
 | `variable.builtin`      | `tags.special(tags.variableName)`  |
@@ -194,7 +199,11 @@ The highlight query's captures become these tags (`tqlCaptureTags`):
 | `punctuation.delimiter` | `tags.separator`                   |
 
 A capture without an entry takes the tag of the nearest capture it refines, so
-`function.builtin` would be a `function`. Captures starting with `_` never
+`function.builtin` would be a `function`. Pipeline operators (`function.operator`),
+times and durations (`number.time`, `number.duration`), and IP addresses and
+subnets (`constant.ip`, `constant.subnet`) share the tags of the captures they
+refine, so standard highlight styles color them as before, while
+`tqlHighlighter` can color them apart by capture name. Captures starting with `_` never
 color.
 
 Captures follow tree-sitter's rules: an inner node's capture wins over the
