@@ -128,6 +128,23 @@ const foldRange = (
   return to > from ? { from, to } : null;
 };
 
+/**
+ * The type of the root of an empty document, which is the grammar's start
+ * rule, or the language's name if an empty document is an error.
+ */
+const rootName = (Parser: typeof TreeSitter.Parser, language: TreeSitter.Language): string => {
+  const parser = new Parser();
+  let tree: TreeSitter.Tree | null = null;
+  try {
+    parser.setLanguage(language);
+    tree = parser.parse("");
+    return tree && !tree.rootNode.isError ? tree.rootNode.type : (language.name ?? "document");
+  } finally {
+    tree?.delete();
+    parser.delete();
+  }
+};
+
 /** Quotes a node name for `styleTags`, which splits selectors at spaces. */
 const selector = (name: string) => JSON.stringify(name).replace(/ /g, "\\u0020");
 
@@ -202,7 +219,7 @@ class Grammar {
     }
     this.top = NodeType.define({
       id: 0,
-      name: "program",
+      name: rootName(TSParser, language),
       top: true,
       props: [
         [languageDataProp, data],
@@ -441,8 +458,9 @@ class TqlParse implements PartialParse {
       const captured = new Map<number, Captured>();
       let queriedDepth = Infinity;
       cursor = resources.cursor = tree.walk();
-      const program = cursor.nodeType === "program";
-      if (program) grammar.capture(tree.rootNode, { maxStartDepth: grammar.queryDepth }, captured);
+      // An error at the root becomes a node of its own.
+      const inlineRoot = cursor.nodeTypeId !== ERROR_TYPE;
+      if (inlineRoot) grammar.capture(tree.rootNode, { maxStartDepth: grammar.queryDepth }, captured);
       const frames: Frame[] = [{
         type: grammar.top,
         from: 0,
@@ -461,7 +479,7 @@ class TqlParse implements PartialParse {
         add(new Tree(frame.type, frame.children, frame.positions, (end ?? frame.to) - frame.from), frame.from);
       };
 
-      let exhausted = program && !cursor.gotoFirstChild();
+      let exhausted = inlineRoot && !cursor.gotoFirstChild();
       let end = text.length;
       for (let steps = 0; !exhausted; steps++) {
         const from = cursor.startIndex;

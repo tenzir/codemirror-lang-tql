@@ -420,8 +420,9 @@ describe("resources", () => {
       });
     }
     const support = makeSupport();
-    // The temporary highlight query supplies capture names and the pattern boundary.
-    assert.deepEqual(deleted, ["Query"]);
+    // The temporary highlight query supplies capture names and the pattern
+    // boundary, the temporary parser the name of the root.
+    assert.deepEqual(deleted.sort(), ["Parser", "Query"]);
     deleted.length = 0;
     parse(example, support);
     support.language.parser.delete();
