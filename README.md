@@ -235,9 +235,10 @@ const extensions = [
 
 ## Editing
 
-- **Quote pairing:** `closeBrackets()` pairs `(`, `[`, `{`, `"`, and `'`, also
-  after the string prefixes `f` and `b`, and the raw prefixes `r` and `br`
-  with up to 8 `#`. tree-sitter-tql parses a string without its closing quote
+- **Quote pairing:** `closeBrackets()` pairs `(`, `[`, `{`, and `"`, also
+  after the format prefix `f` and the byte and raw prefixes `b`, `r`, and
+  `br` with up to 8 `#`. TQL has no single-quoted strings, so `'` doesn't
+  pair. tree-sitter-tql parses a string without its closing quote
   as a string that runs to the end of the document, as TQL's strings may span
   lines, so typing the closing quote doesn't insert a pair. The same goes for a
   `/*` comment without its `*/`.

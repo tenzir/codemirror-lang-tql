@@ -20,7 +20,7 @@ export const tqlQueries: {
   readonly injections: string;
 } = { highlights, indents, folds, brackets, injections };
 
-const rawPrefixes = ["r", "br"].flatMap((prefix) => {
+const hashedPrefixes = ["b", "r", "br"].flatMap((prefix) => {
   return Array.from({ length: 9 }, (_, hashes) => prefix + "#".repeat(hashes));
 });
 
@@ -69,8 +69,10 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
   const data = defineLanguageFacet({
     commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
     closeBrackets: {
-      // Raw strings take up to 8 hashes, as in tree-sitter-tql.
-      stringPrefixes: ["f", "b", ...rawPrefixes],
+      // TQL has no single-quoted strings.
+      brackets: ["(", "[", "{", '"'],
+      // Byte and raw strings take up to 8 hashes, as in tree-sitter-tql.
+      stringPrefixes: ["f", ...hashedPrefixes],
     },
     indentOnInput: /^\s*[}\]]$/,
   });

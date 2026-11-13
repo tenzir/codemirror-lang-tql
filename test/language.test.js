@@ -158,10 +158,9 @@ describe("quote pairing", () => {
 
   it("pairs quotes and brackets that open something", () => {
     assert.equal(insert("x = ", '"'), 'x = ""');
-    assert.equal(insert("x = ", "'"), "x = ''");
     assert.equal(insert("x = f(▮)", '"'), 'x = f("")');
     assert.equal(insert("x = ", "{"), "x = {}");
-    for (const prefix of ["f", "b", "r", "r#", "br##"]) {
+    for (const prefix of ["f", "b", "b#", "b########", "r", "r#", "br##"]) {
       assert.equal(insert(`x = ${prefix}`, '"'), `x = ${prefix}""`, prefix);
     }
   });
@@ -183,6 +182,12 @@ describe("quote pairing", () => {
     assert.equal(insert('x = "a, ▮\ny = 1', '"'), null);
     assert.equal(insert('x = f"{g("abc, ', '"'), null);
     assert.equal(insert("x = r########\"abc, ", '"'), null);
+    assert.equal(insert('x = b#"a")', '"'), null);
+    assert.equal(insert('x = b##"a"#', '"'), null);
+  });
+
+  it("does not pair single quotes, which TQL lacks", () => {
+    assert.equal(insert("x = ", "'"), null);
   });
 
   it("ignores braces in comments of a format string's replacement", () => {
