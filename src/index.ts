@@ -1,4 +1,4 @@
-import { defineLanguageFacet, indentService, Language, LanguageSupport } from "@codemirror/language";
+import { defineLanguageFacet, Language, LanguageSupport } from "@codemirror/language";
 import { type Parser, parseMixed } from "@lezer/common";
 import brackets from "tree-sitter-tql/queries/tql/brackets.scm";
 import folds from "tree-sitter-tql/queries/tql/folds.scm";
@@ -95,8 +95,7 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
     data,
     wrapper,
   );
-  const atEnd = indentService.of((cx, pos) => parser.indentAtEnd(cx, pos));
-  return new LanguageSupport(new Language(data, parser, [], "tql"), [atEnd]);
+  return new LanguageSupport(new Language(data, parser, [], "tql"));
 }
 
 /** Where `loadTql` loads web-tree-sitter and the grammar from. */

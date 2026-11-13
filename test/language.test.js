@@ -258,12 +258,9 @@ describe("editing", () => {
     // Replacements and the end of a line comment indent by structure.
     assert.equal(run(insertNewlineAndIndent, 'if x {\n  y = f"{[▮]}"\n}'), 'if x {\n  y = f"{[\n    \n  ]}"\n}');
     assert.equal(run(insertNewlineAndIndent, "let $p = {a: 1, // c▮\n}"), "let $p = {a: 1, // c\n  \n}");
-    // At the end of the document, only literals that are not closed yet.
-    for (const literal of ['"a', 'f"{a}', 'r#"a"']) {
-      const doc = `if x {\n  y = ${literal}\n      b`;
-      assert.equal(run(insertNewlineAndIndent, doc), `${doc}\n      `, literal);
-    }
-    for (const end of ['"a\n      b"', "1 // c"]) {
+    // So does the end of the document, which lies inside no node, even after
+    // a string that is not closed yet.
+    for (const end of ['"a\n      b"', '"a\n      b', "1 // c"]) {
       const doc = `if x {\n  y = ${end}`;
       assert.equal(run(insertNewlineAndIndent, doc), `${doc}\n  `, end);
     }
