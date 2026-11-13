@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { closeBrackets, insertBracket } from "@codemirror/autocomplete";
 import { insertNewlineAndIndent, toggleComment } from "@codemirror/commands";
 import { yamlLanguage } from "@codemirror/lang-yaml";
-import { foldable, getIndentation, matchBrackets, syntaxTree } from "@codemirror/language";
+import { ensureSyntaxTree, foldable, getIndentation, matchBrackets, syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { NodeProp, parseMixed } from "@lezer/common";
 import { classHighlighter, highlightTree, tags as t } from "@lezer/highlight";
@@ -258,6 +258,15 @@ describe("editing", () => {
     // Replacements and the end of a line comment indent by structure.
     assert.equal(run(insertNewlineAndIndent, 'if x {\n  y = f"{[▮]}"\n}'), 'if x {\n  y = f"{[\n    \n  ]}"\n}');
     assert.equal(run(insertNewlineAndIndent, "let $p = {a: 1, // c▮\n}"), "let $p = {a: 1, // c\n  \n}");
+    // At the end of the document, only literals that are not closed yet.
+    for (const literal of ['"a', 'f"{a}', 'r#"a"']) {
+      const doc = `if x {\n  y = ${literal}\n      b`;
+      assert.equal(run(insertNewlineAndIndent, doc), `${doc}\n      `, literal);
+    }
+    for (const end of ['"a\n      b"', "1 // c"]) {
+      const doc = `if x {\n  y = ${end}`;
+      assert.equal(run(insertNewlineAndIndent, doc), `${doc}\n  `, end);
+    }
   });
 
   it("folds blocks and front matter", () => {
@@ -305,7 +314,7 @@ describe("front matter", () => {
   /** The highlighted spans of the front matter. */
   const frontMatter = (state) => {
     const spans = [];
-    highlightTree(syntaxTree(state), classHighlighter, (from, to, cls) => {
+    highlightTree(ensureSyntaxTree(state, example.length, 5000), classHighlighter, (from, to, cls) => {
       if (to <= example.indexOf("---", 3) + 4) spans.push([example.slice(from, to), cls]);
     });
     return spans;

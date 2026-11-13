@@ -237,9 +237,11 @@ const extensions = [
   inside a node captured as `@indent.auto` (strings, the text of format
   strings, comments, and the body of front matter) keeps its indentation, so a
   new line there takes the indentation of the line before, as in
-  nvim-treesitter. At the top level, a new line keeps the indentation of the
-  line before, too. `indentOnInput()` reindents a line once you type its
-  closing bracket.
+  nvim-treesitter. That includes a new line at the end of the document after
+  such a node that is not closed yet, which tree-sitter tells by parsing the
+  document with the line break. At the top level, a new line keeps the
+  indentation of the line before, too. `indentOnInput()` reindents a line once
+  you type its closing bracket.
 - **Folding:** the nodes that `folds.scm` captures as `@fold` fold between
   their `@open` and `@close` brackets, and front matter between its fences.
 - **Comments:** `//` for lines and `/* */` for blocks.

@@ -1,7 +1,9 @@
 import {
   foldNodeProp,
+  type IndentContext,
   indentNodeProp,
   languageDataProp,
+  syntaxTree,
   type defineLanguageFacet,
   type TreeIndentContext,
 } from "@codemirror/language";
@@ -216,6 +218,23 @@ class Grammar {
     });
   }
 
+  /** Whether `node`, which ends `text`, grows when a line break follows. */
+  takes(text: string, node: SyntaxNode): boolean {
+    const parser = new this.Parser();
+    let tree: TreeSitter.Tree | null = null;
+    try {
+      parser.setLanguage(this.language);
+      tree = parser.parse(`${text}\n`);
+      for (let at = tree?.rootNode.descendantForIndex(node.from); at; at = at.parent) {
+        if (at.startIndex === node.from && at.type === node.name) return at.endIndex > text.length;
+      }
+      return false;
+    } finally {
+      tree?.delete();
+      parser.delete();
+    }
+  }
+
   /** CodeMirror drops parses without cancelling them. Never evict live ones. */
   track(parse: object): ParseResources {
     const resources = new ParseResources();
@@ -385,7 +404,21 @@ export class TqlParser extends Parser {
     return this.#wrapper ? this.#wrapper(parse, input, fragments, ranges) : parse;
   }
 
-  /** Frees the tree-sitter parser, queries, and trees. */
+  /**
+   * @internal Keeps the indentation of a line break typed at the end of the
+   * document right after an unterminated literal, like a string without its
+   * closing quote. CodeMirror only asks the nodes that the end of the
+   * document lies inside of, which a literal ending there is not.
+   */
+  indentAtEnd(cx: IndentContext, pos: number): null | undefined {
+    const doc = cx.state.doc;
+    if (pos !== doc.length) return undefined;
+    const node = syntaxTree(cx.state).resolveInner(pos, -1);
+    if (node.from === pos || node.to !== pos || node.type.prop(indentNodeProp) !== indentAuto) return undefined;
+    return this.#grammar.takes(doc.toString(), node) ? null : undefined;
+  }
+
+  /** Frees the combined query and the native handles of unfinished parses. */
   delete(): void {
     this.#grammar.delete();
   }
