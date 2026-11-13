@@ -246,16 +246,19 @@ The bare parser of `@lezer/yaml` only highlights the body.
 
 ## Lifetime and performance
 
-Each parse runs tree-sitter on the whole document and converts the whole
-tree, which takes a few milliseconds for a typical pipeline and about 15 ms
-for a 32 KB file. Parses work in steps of a few milliseconds and stop where
-CodeMirror asks them to, such as at the end of the viewport, so a large
-document does not block the editor: CodeMirror parses the rest in the
-background. A parse frees its tree-sitter tree when it finishes or fails.
+Each parse runs tree-sitter on the document, or the prefix where CodeMirror
+asks it to stop, without reusing an earlier tree. A generator yields between
+steps targeting 4 ms, so CodeMirror can continue parsing in the background.
+The combined highlight, indent, and fold query runs on small subtrees; larger
+subtrees are queried one level at a time instead of repeatedly querying their
+enclosing nodes.
 
-The language owns a tree-sitter parser and its queries, which live in
-WebAssembly memory until you free them, along with the trees of up to four
-parses that CodeMirror dropped halfway:
+Each parse owns its native parser and tree and frees them as soon as their
+work finishes, also on errors. CodeMirror has no cancellation hook for parses
+it drops, so a finalizer frees an abandoned parse's native handles once the
+parse is garbage-collected. Active parses are never evicted, including when
+several editors share the language. To free the combined query and all
+unfinished parses immediately, without waiting for garbage collection, use:
 
 ```ts
 import type { TqlParser } from "@tenzir/codemirror-lang-tql";
@@ -288,6 +291,12 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
   and prefix rules. Of several such strings, the first one wins.
 - Around syntax errors, tree-sitter may recover differently when it resumes a
   parse that yielded than when it parses the whole document at once.
+- The 4 ms target is not a hard deadline. Custom queries that match many
+  descendants or siblings, large individual tokens, and garbage collection
+  can make a step take longer.
+- Cleanup of abandoned parses depends on garbage collection and is not
+  immediate. Call `delete()` when retiring the language to free all native
+  handles deterministically.
 
 ## Development
 

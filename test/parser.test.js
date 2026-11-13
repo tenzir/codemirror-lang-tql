@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { afterEach, describe, it, mock } from "node:test";
 import { ensureSyntaxTree, getIndentation, matchBrackets, syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
@@ -154,11 +155,9 @@ describe("parsing in steps", () => {
     state = state.update({ changes: { from: 10, insert: "y" } }).state;
     const edited = performance.now() - start;
     // Parsing the whole document takes many steps, none of them long.
-    let rounds = 0;
     let tree;
-    while (!(tree = ensureSyntaxTree(state, state.doc.length, 20))) rounds++;
+    while (!(tree = ensureSyntaxTree(state, state.doc.length, 20)));
     assert.equal(tree.length, state.doc.length);
-    assert.ok(rounds > 5, `${rounds} rounds`);
     // Generous bounds for slow machines: the whole parse blocked for
     // seconds before.
     assert.ok(edited < 1000, `created and edited in ${edited} ms`);
@@ -166,11 +165,84 @@ describe("parsing in steps", () => {
     parser.delete();
   });
 
+  it("yields when its step budget expires", () => {
+    const support = makeSupport();
+    let time = 0;
+    const clock = mock.method(performance, "now", () => time++);
+    try {
+      assert.equal(support.language.parser.startParse(large).advance(), null);
+    } finally {
+      clock.mock.restore();
+      support.language.parser.delete();
+    }
+  });
+
+  it("finishes five editors sharing one language", () => {
+    const support = makeSupport();
+    const states = Array.from({ length: 5 }, (_, i) =>
+      EditorState.create({ doc: `x = ${i}\n${body.repeat(150)}`, extensions: [support] }),
+    );
+    const trees = states.map(() => null);
+    for (let round = 0; round < 200 && trees.some((tree) => !tree); round++) {
+      states.forEach((state, i) => {
+        if (!trees[i]) trees[i] = ensureSyntaxTree(state, state.doc.length, 10);
+      });
+    }
+    trees.forEach((tree, i) => assert.equal(tree?.length, states[i].doc.length, `editor ${i}`));
+    support.language.parser.delete();
+  });
+
   it("colors in parts like tree-sitter does at once", () => {
     const text = body.repeat(20);
     const platform = makeSupport({ tags: { punctuation: null } });
     assert.deepEqual(paint(text, parse(text, platform)), paintTreeSitter(text));
     platform.language.parser.delete();
+  });
+
+  it("queries parents and sibling patterns across subtree boundaries", () => {
+    const text = "x = 1\ny = 2\nz = 3\n".repeat(30);
+    for (const highlights of [
+      "(pipeline) @string\n(identifier) @keyword",
+      "(pipeline (statement) @keyword)",
+      "((statement) @keyword . (statement) @string)",
+    ]) {
+      const support = makeSupport({ highlights, indents: "", folds: "" });
+      assert.deepEqual(paint(text, parse(text, support)), paintTreeSitter(text, undefined, highlights));
+      support.language.parser.delete();
+    }
+  });
+
+  it("bounds query work on deeply nested lists", () => {
+    const support = makeSupport();
+    const text = `x = ${"[".repeat(30000)}1${"]".repeat(30000)}`;
+    const parse = support.language.parser.startParse(text);
+    let longest = 0;
+    let tree;
+    while (!tree) {
+      const start = performance.now();
+      tree = parse.advance();
+      longest = Math.max(longest, performance.now() - start);
+    }
+    assert.equal(tree.length, text.length);
+    assert.ok(count(tree) > 30000);
+    assert.ok(longest < 250, `longest step ${longest} ms`);
+    support.language.parser.delete();
+  });
+
+  it("recovers an unterminated string inside deeply nested lists", () => {
+    const error = mock.method(console, "error", () => {});
+    try {
+      const text = `x = ${"[".repeat(2000)}"hello${"]".repeat(2000)}`;
+      const tree = parse(text);
+      const literal = tree.resolveInner(text.length, -1);
+      assert.equal(literal.name, "string");
+      assert.equal(literal.from, 2004);
+      assert.equal(literal.to, text.length);
+      assert.ok(count(tree) > 2000);
+      assert.equal(error.mock.callCount(), 0);
+    } finally {
+      error.mock.restore();
+    }
   });
 
   it("converts deeply nested and long expressions", () => {
@@ -192,10 +264,11 @@ describe("parsing in steps", () => {
 describe("resources", () => {
   afterEach(() => mock.restoreAll());
 
-  /** Counts the tree-sitter trees and cursors that parses create and free. */
+  /** Counts the tree-sitter parsers, trees, and cursors that parses create and free. */
   const track = () => {
     const live = new Set();
     for (const [prototype, method] of [
+      [TreeSitter.Parser.prototype, "setLanguage"],
       [TreeSitter.Parser.prototype, "parse"],
       [TreeSitter.Tree.prototype, "walk"],
     ]) {
@@ -223,7 +296,7 @@ describe("resources", () => {
     assert.equal(live.size, 0);
   });
 
-  it("bounds and frees what dropped parses hold", () => {
+  it("frees dropped parses when the language is deleted", () => {
     const live = track();
     const support = makeSupport();
     // Parses that CodeMirror drops halfway.
@@ -231,8 +304,90 @@ describe("resources", () => {
       const parse = support.language.parser.startParse(`${large}// ${i}`);
       while (parse.parsedPos === 0) assert.equal(parse.advance(), null);
     }
-    // A tree and a cursor for each of at most four parses.
-    assert.ok(live.size <= 8, `${live.size} objects`);
+    assert.ok(live.size > 0);
+    support.language.parser.delete();
+    assert.equal(live.size, 0);
+  });
+
+  it("frees native parsers suspended before a tree exists", () => {
+    const live = track();
+    const support = makeSupport();
+    const parser = support.language.parser;
+    const parses = Array.from({ length: 8 }, (_, i) => parser.startParse(`${large}// ${i}`));
+    for (const parse of parses) assert.equal(parse.advance(), null);
+    assert.ok(live.size > 0);
+    let tree;
+    while (!(tree = parses[0].advance()));
+    assert.equal(tree.length, large.length + 4);
+    parser.delete();
+    assert.equal(live.size, 0);
+  });
+
+  it("collects abandoned native parses without retaining their generators", () => {
+    // A separate process exposes GC without changing the normal test runner.
+    const result = spawnSync(process.execPath, ["--expose-gc", "--input-type=module", "-e", `
+      import assert from "node:assert/strict";
+      import { setTimeout } from "node:timers/promises";
+      import { tql } from ${JSON.stringify(new URL("../dist/index.js", import.meta.url).href)};
+      import { TreeSitter, language, example } from ${JSON.stringify(new URL("./helpers.js", import.meta.url).href)};
+      let live = 0;
+      const track = (object) => {
+        live++;
+        const free = object.delete;
+        object.delete = function () { live--; free.call(this); };
+        return object;
+      };
+      class TrackedParser extends TreeSitter.Parser {
+        constructor() { super(); track(this); }
+        parse(...args) {
+          const tree = super.parse(...args);
+          if (tree) {
+            track(tree);
+            const walk = tree.walk.bind(tree);
+            tree.walk = () => track(walk());
+          }
+          return tree;
+        }
+      }
+      const support = tql({ Parser: TrackedParser, Query: TreeSitter.Query, language });
+      const text = example.repeat(500);
+      const active = support.language.parser.startParse(text);
+      active.advance();
+      const abandon = () => {
+        for (let i = 0; i < 10; i++) {
+          const parse = support.language.parser.startParse(text);
+          parse.advance();
+          // Drop some during native parsing, others during conversion.
+          if (i >= 5) while (parse.parsedPos === 0) parse.advance();
+        }
+      };
+      abandon();
+      assert.ok(live > 1);
+      for (let i = 0; i < 100 && live > 1; i++) {
+        await setTimeout(10);
+        global.gc();
+      }
+      assert.equal(live, 1, "only the active parse remains");
+      while (!active.advance());
+      support.language.parser.delete();
+      assert.equal(live, 0);
+    `], { encoding: "utf8", timeout: 15000 });
+    assert.equal(result.status, 0, result.stderr || String(result.error));
+  });
+
+  it("can interleave parses without mixing their native state", () => {
+    const live = track();
+    const support = makeSupport();
+    const texts = [body.repeat(20), "x = 1\n".repeat(5000)];
+    const parses = texts.map((text) => support.language.parser.startParse(text));
+    const trees = [null, null];
+    while (trees.some((tree) => !tree)) {
+      parses.forEach((parse, i) => { if (!trees[i]) trees[i] = parse.advance(); });
+    }
+    trees.forEach((tree, i) => {
+      checkTree(tree, texts[i]);
+      assert.deepEqual(paint(texts[i], tree), paintTreeSitter(texts[i]));
+    });
     support.language.parser.delete();
     assert.equal(live.size, 0);
   });
@@ -260,23 +415,23 @@ describe("resources", () => {
       });
     }
     const support = makeSupport();
-    // The queries on their own, which only check the sources.
-    assert.deepEqual(deleted.sort(), ["Query", "Query", "Query"]);
+    // The temporary highlight query supplies capture names and the pattern boundary.
+    assert.deepEqual(deleted, ["Query"]);
     deleted.length = 0;
     parse(example, support);
     support.language.parser.delete();
-    // The parser and the queries in one.
+    // The per-parse parser and the combined query.
     assert.deepEqual(deleted.sort(), ["Parser", "Query"]);
   });
 
   it("frees what it created when a query does not compile", () => {
     const deleted = [];
-    const original = TreeSitter.Parser.prototype.delete;
-    mock.method(TreeSitter.Parser.prototype, "delete", function () {
-      deleted.push("Parser");
+    const original = TreeSitter.Query.prototype.delete;
+    mock.method(TreeSitter.Query.prototype, "delete", function () {
+      deleted.push("Query");
       return original.call(this);
     });
     assert.throws(() => makeSupport({ indents: "(nope) @indent" }));
-    assert.deepEqual(deleted, ["Parser"]);
+    assert.deepEqual(deleted, ["Query"]);
   });
 });
