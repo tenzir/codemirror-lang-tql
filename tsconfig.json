@@ -1,12 +1,14 @@
 {
   "compilerOptions": {
     "strict": true,
-    "target": "es6",
-    "module": "es2020",
+    "target": "es2022",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2022", "dom"],
     "newLine": "lf",
     "declaration": true,
-    "moduleResolution": "node",
-    "allowJs": true
+    "noEmit": true,
+    "skipLibCheck": true
   },
   "include": ["src/*.ts"]
 }

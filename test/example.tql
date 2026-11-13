@@ -1,0 +1,37 @@
+---
+name: Flag large uploads
+description: |
+  Reads Zeek connection logs and flags large uploads.
+---
+
+// The networks and ports to watch.
+let $internal = 10.0.0.0/8
+let $ports = [22, 3389, 5900]
+let $alerts = { where severity == "high" }
+
+from_file "/var/log/zeek/conn.log", follow=true {
+  read_zeek_tsv
+}
+where id.orig_h in $internal and duration > 30s and id.resp_p != null
+@name = "zeek.conn"
+proto = proto?.to_upper() else "unknown"
+/* Name the service by its port
+   (or keep the port for others). */
+match id.resp_p {
+  22 => { service = "ssh" }
+  3389 => { service = "rdp" }
+  _ => { service = f"port-{id.resp_p}" }
+}
+if orig_bytes? > 1Mi {
+  severity = "high"
+  note = r#"Uploaded "{orig_bytes}" bytes"#
+} else {
+  severity = "low"
+}
+marker = b"\x00\x01"
+gateway = 192.168.0.1
+greeting = "Grüße 👋 (from the edge)"
+watched = $ports.where(port => port < 1024)
+summary = {host: id.orig_h, ports: watched, ratio: 2.5e3}
+fork $alerts
+summarize id.orig_h, total=sum(orig_bytes)

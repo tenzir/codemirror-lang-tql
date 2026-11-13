@@ -1,28 +1,139 @@
-import { parser } from "./tql.grammar";
-import { LRLanguage, LanguageSupport } from "@codemirror/language";
-import { styleTags, tags as t } from "@lezer/highlight";
+import { defineLanguageFacet, Language, LanguageSupport } from "@codemirror/language";
+import { type Parser, parseMixed } from "@lezer/common";
+import brackets from "tree-sitter-tql/queries/tql/brackets.scm";
+import folds from "tree-sitter-tql/queries/tql/folds.scm";
+import highlights from "tree-sitter-tql/queries/tql/highlights.scm";
+import indents from "tree-sitter-tql/queries/tql/indents.scm";
+import injections from "tree-sitter-tql/queries/tql/injections.scm";
+import { injectionProp, TqlParser, type TqlTreeSitter } from "./parser";
+import type { TqlCaptureTags } from "./tags";
 
-const punctuation = `"+" "-" "*" "/" "=" "." "'" ":" "!" "?" "<" ">" "@" "%" "&" "#" ";" "^" "\`"`;
+export { TqlParser, type TqlTreeSitter } from "./parser";
+export { type TqlCaptureTags, tqlCaptureTags, tqlHighlighter } from "./tags";
 
-export const TenzirQueryLang = LRLanguage.define({
-  languageData: {
-    commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
-  },
-  parser: parser.configure({
-    props: [
-      styleTags({
-        "Scalar true false null DollarIdent": t.literal,
-        String: t.string,
-        "StringEsc and else if in let match meta not or this move": t.keyword,
-        "OpName! FnIdent": t.name,
-        [punctuation]: t.punctuation,
-        "LineComment BlockComment": t.comment,
-      }),
-    ],
-    // TODO: add folding later
-  }),
+/** The queries of tree-sitter-tql that `tql` uses unless given others. */
+export const tqlQueries: {
+  readonly highlights: string;
+  readonly indents: string;
+  readonly folds: string;
+  readonly brackets: string;
+  readonly injections: string;
+} = { highlights, indents, folds, brackets, injections };
+
+const rawPrefixes = ["r", "br"].flatMap((prefix) => {
+  return Array.from({ length: 9 }, (_, hashes) => prefix + "#".repeat(hashes));
 });
 
-export function TQL() {
-  return new LanguageSupport(TenzirQueryLang);
+/** How `tql` sets up the language. */
+export interface TqlOptions {
+  /** The highlight query; tree-sitter-tql's `highlights.scm` by default. */
+  readonly highlights?: string;
+  /** The indent query; tree-sitter-tql's `indents.scm` by default. */
+  readonly indents?: string;
+  /** The fold query; tree-sitter-tql's `folds.scm` by default. */
+  readonly folds?: string;
+  /** The bracket query; tree-sitter-tql's `brackets.scm` by default. */
+  readonly brackets?: string;
+  /** The injection query; tree-sitter-tql's `injections.scm` by default. */
+  readonly injections?: string;
+  /**
+   * Style tags by capture name over the defaults of `tqlCaptureTags`, where
+   * `null` leaves a capture out so that the node around it shows through.
+   */
+  readonly tags?: TqlCaptureTags;
+  /**
+   * Parsers for the nodes that the injection query injects a language into,
+   * by the language's name. tree-sitter-tql injects `yaml` into the body of
+   * front matter: `yamlLanguage.parser` from `@codemirror/lang-yaml`
+   * highlights and edits it as YAML; the bare parser of `@lezer/yaml` only
+   * highlights it.
+   */
+  readonly nested?: Readonly<Record<string, Parser>>;
+}
+
+/**
+ * TQL language support for CodeMirror from tree-sitter-tql: highlighting,
+ * bracket matching, quote pairing, indentation, folding, and comment
+ * toggling.
+ *
+ * Takes web-tree-sitter's classes and the grammar the host loaded, after
+ * `Parser.init()` and `Language.load()`, so the host decides where the
+ * WebAssembly comes from and when it loads. Each parse owns a native parser
+ * and tree and frees them when its work finishes. The language owns the
+ * combined query, which lives in WebAssembly memory until
+ * `(support.language.parser as TqlParser).delete()` frees it along with any
+ * unfinished parses, so create the language once and share it between
+ * editors.
+ */
+export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): LanguageSupport {
+  const data = defineLanguageFacet({
+    commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
+    closeBrackets: {
+      // Raw strings take up to 8 hashes, as in tree-sitter-tql.
+      stringPrefixes: ["f", "b", ...rawPrefixes],
+    },
+    indentOnInput: /^\s*[}\]]$/,
+  });
+  const nested = options.nested;
+  const wrapper = nested
+    ? parseMixed((node) => {
+        const name = node.type.prop(injectionProp);
+        const parser = name !== undefined && Object.hasOwn(nested, name) ? nested[name] : undefined;
+        return parser ? { parser } : null;
+      })
+    : undefined;
+  const parser = new TqlParser(
+    treeSitter,
+    {
+      highlights: options.highlights ?? highlights,
+      indents: options.indents ?? indents,
+      folds: options.folds ?? folds,
+      brackets: options.brackets ?? brackets,
+      injections: options.injections ?? injections,
+      tags: options.tags ?? {},
+    },
+    data,
+    wrapper,
+  );
+  return new LanguageSupport(new Language(data, parser, [], "tql"));
+}
+
+/** Where `loadTql` loads web-tree-sitter and the grammar from. */
+export interface LoadTqlOptions extends TqlOptions {
+  /**
+   * The URL of web-tree-sitter's `web-tree-sitter.wasm`. Without it,
+   * web-tree-sitter looks next to its script. Ignored when web-tree-sitter
+   * was initialized already.
+   */
+  readonly runtimeWasmUrl?: string;
+  /** The URL of tree-sitter-tql's `tree-sitter-tql.wasm`. */
+  readonly grammarWasmUrl: string;
+}
+
+let initialized: Promise<void> | undefined;
+
+/**
+ * Imports web-tree-sitter on demand, initializes it unless that happened
+ * already, loads the grammar, and returns `tql()` for it.
+ */
+export async function loadTql(options: LoadTqlOptions): Promise<LanguageSupport> {
+  const { Language: TreeSitterLanguage, Parser: TreeSitterParser, Query } = await import(
+    "web-tree-sitter"
+  );
+  initialized ??= (async () => {
+    try {
+      // Initializing again would replace the runtime under the grammars that
+      // the host loaded already, so only initialize what cannot parse yet.
+      new TreeSitterParser().delete();
+    } catch {
+      const url = options.runtimeWasmUrl;
+      await TreeSitterParser.init(url === undefined ? undefined : { locateFile: () => url });
+    }
+  })().catch((error) => {
+    initialized = undefined;
+    throw error;
+  });
+  await initialized;
+  const language = await TreeSitterLanguage.load(options.grammarWasmUrl);
+  return tql({ Parser: TreeSitterParser, Query, language }, options);
 }
