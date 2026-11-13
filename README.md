@@ -276,9 +276,10 @@ steps targeting 4 ms, so CodeMirror can continue parsing in the background.
 The queries run combined into one, on subtrees of up to 256 nodes; larger
 subtrees are queried one level at a time instead of repeatedly querying their
 enclosing nodes. Sibling patterns, like the bracket pairs of `brackets.scm`,
-only match among the children of nodes with up to 256 children, so a list of
-thousands of items keeps each step short but loses the bracket props of its
-own brackets, which still match by name.
+only match among the children of nodes with up to 256 children. A list of
+thousands of items thus keeps each step short, but its own brackets lose their
+bracket props: they still match by name, and the list folds by lines, like
+front matter, rather than between its brackets.
 
 Each parse owns its native parser and tree and frees them as soon as their
 work finishes, also on errors. CodeMirror has no cancellation hook for parses

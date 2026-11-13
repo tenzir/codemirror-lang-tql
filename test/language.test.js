@@ -222,6 +222,9 @@ describe("editing", () => {
     const doc = 'x = f(")", /* ) */ "(" // )\n)';
     assert.deepEqual(matchBrackets(stateOf(doc), 5, 1).end, { from: doc.length - 1, to: doc.length });
     assert.equal(matchBrackets(stateOf("x = f(a"), 5, 1).matched, false);
+    // The brackets of a list too wide for the bracket query match by name.
+    const wide = `x = [${'"]",'.repeat(300)}1]`;
+    assert.deepEqual(matchBrackets(stateOf(wide), 4, 1).end, { from: wide.length - 1, to: wide.length });
   });
 
   it("indents the example as written", () => {
