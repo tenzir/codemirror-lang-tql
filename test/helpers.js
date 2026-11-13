@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { ensureSyntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { highlightTree } from "@lezer/highlight";
 import * as TreeSitter from "web-tree-sitter";
@@ -32,15 +33,27 @@ export const support = makeSupport();
 /** Parses `text` into a Lezer tree. */
 export const parse = (text, with_ = support) => with_.language.parser.parse(text);
 
-/** An editor state for `doc` with the cursor at `▮`, or at the end. */
+/**
+ * `state` with its whole document parsed. Without a view, CodeMirror parses
+ * for 20 ms per state only, which a busy machine may not finish in.
+ */
+export const parsed = (state) => {
+  ensureSyntaxTree(state, state.doc.length, 5000);
+  // The state picks up the finished tree with its next transaction.
+  return state.update({}).state;
+};
+
+/** A parsed editor state for `doc` with the cursor at `▮`, or at the end. */
 export const stateOf = (doc, extensions = []) => {
   const cursor = doc.indexOf("▮");
   const text = cursor < 0 ? doc : doc.slice(0, cursor) + doc.slice(cursor + 1);
-  return EditorState.create({
-    doc: text,
-    selection: { anchor: cursor < 0 ? text.length : cursor },
-    extensions: [support, extensions],
-  });
+  return parsed(
+    EditorState.create({
+      doc: text,
+      selection: { anchor: cursor < 0 ? text.length : cursor },
+      extensions: [support, extensions],
+    }),
+  );
 };
 
 /** A class per capture name: the capture's own name. */

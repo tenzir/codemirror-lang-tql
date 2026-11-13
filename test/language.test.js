@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { closeBrackets, insertBracket } from "@codemirror/autocomplete";
 import { insertNewlineAndIndent, toggleComment } from "@codemirror/commands";
 import { yamlLanguage } from "@codemirror/lang-yaml";
-import { ensureSyntaxTree, foldable, getIndentation, matchBrackets, syntaxTree } from "@codemirror/language";
+import { foldable, getIndentation, matchBrackets, syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
 import { NodeProp, parseMixed } from "@lezer/common";
 import { classHighlighter, highlightTree, tags as t } from "@lezer/highlight";
@@ -16,6 +16,7 @@ import {
   paint,
   paintTreeSitter,
   parse,
+  parsed,
   stateOf,
   support,
 } from "./helpers.js";
@@ -188,7 +189,7 @@ describe("quote pairing", () => {
   });
 
   it("steps over the quote it inserted", () => {
-    const paired = insertBracket(stateOf("x = ", closeBrackets()), '"').state;
+    const paired = parsed(insertBracket(stateOf("x = ", closeBrackets()), '"').state);
     const stepped = insertBracket(paired, '"').state;
     assert.equal(stepped.doc.toString(), 'x = ""');
     assert.equal(stepped.selection.main.head, 6);
@@ -291,7 +292,7 @@ describe("editing", () => {
     assert.equal(closedBy(squares), undefined);
     // A fold starts after an opening bracket, or else at the end of the line.
     const fold = (with_) => {
-      const state = EditorState.create({ doc, extensions: [with_] });
+      const state = parsed(EditorState.create({ doc, extensions: [with_] }));
       const range = foldable(state, 0, state.doc.line(1).to);
       return doc.slice(range.from, range.to);
     };
@@ -314,7 +315,7 @@ describe("front matter", () => {
   /** The highlighted spans of the front matter. */
   const frontMatter = (state) => {
     const spans = [];
-    highlightTree(ensureSyntaxTree(state, example.length, 5000), classHighlighter, (from, to, cls) => {
+    highlightTree(syntaxTree(state), classHighlighter, (from, to, cls) => {
       if (to <= example.indexOf("---", 3) + 4) spans.push([example.slice(from, to), cls]);
     });
     return spans;
@@ -322,14 +323,14 @@ describe("front matter", () => {
 
   it("highlights and edits the body as YAML with a nested parser", () => {
     const yaml = makeSupport({ nested: { yaml: yamlLanguage.parser } });
-    let state = EditorState.create({ doc: example, selection: { anchor: 5 }, extensions: [yaml] });
+    let state = parsed(EditorState.create({ doc: example, selection: { anchor: 5 }, extensions: [yaml] }));
     assert.deepEqual(frontMatter(state).slice(0, 4), [
       ["---\n", "tok-comment"],
       ["name", "tok-propertyName tok-definition"],
       [":", "tok-punctuation"],
       ["description", "tok-propertyName tok-definition"],
     ]);
-    toggleComment({ state, dispatch: (tr) => (state = tr.state) });
+    toggleComment({ state, dispatch: (tr) => (state = parsed(tr.state)) });
     assert.equal(state.doc.line(2).text, "# name: Flag large uploads");
     state = state.update({ selection: { anchor: state.doc.line(3).to } }).state;
     insertNewlineAndIndent({ state, dispatch: (tr) => (state = tr.state) });
@@ -343,14 +344,14 @@ describe("front matter", () => {
       ["", { yaml: yamlLanguage.parser }],
     ]) {
       const support = makeSupport({ injections, nested });
-      const state = EditorState.create({ doc: example, extensions: [support] });
+      const state = parsed(EditorState.create({ doc: example, extensions: [support] }));
       assert.deepEqual(frontMatter(state), [["---\n", "tok-comment"], ["---\n", "tok-comment"]]);
       support.language.parser.delete();
     }
     // Into the root, too.
     const injections = '((program) @injection.content (#set! injection.language "yaml"))';
     const support = makeSupport({ injections, nested: { yaml: yamlLanguage.parser } });
-    const state = EditorState.create({ doc: "name: x", extensions: [support] });
+    const state = parsed(EditorState.create({ doc: "name: x", extensions: [support] }));
     assert.equal(syntaxTree(state).resolveInner(1, 1).name, "Literal");
     support.language.parser.delete();
   });

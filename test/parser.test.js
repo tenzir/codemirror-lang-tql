@@ -11,6 +11,7 @@ import {
   paint,
   paintTreeSitter,
   parse,
+  parsed,
   stateOf,
 } from "./helpers.js";
 
@@ -329,7 +330,7 @@ describe("resources", () => {
   it("frees tree-sitter trees", () => {
     const live = track();
     parse(example);
-    stateOf(example).update({ changes: { from: 0, insert: "x = 1\n" } }).state;
+    parsed(stateOf(example).update({ changes: { from: 0, insert: "x = 1\n" } }).state);
     assert.equal(live.size, 0);
   });
 
