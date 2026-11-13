@@ -220,9 +220,13 @@ const extensions = [
 - **Indentation:** lines inside the nodes that `indents.scm` captures as
   `@indent` (blocks, pipelines, records, lists, match arms) are indented one
   unit past the line where the node starts, and a line starting with an
-  `@outdent` token (`}` and `]`) lines up with that line. Elsewhere, a new line
-  keeps the indentation of the line before. `indentOnInput()` reindents a line
-  once you type its closing bracket.
+  `@outdent` token (`}` and `]`) lines up with that line. A line that starts
+  inside a node captured as `@indent.auto` (strings, the text of format
+  strings, comments, and the body of front matter) keeps its indentation, so a
+  new line there takes the indentation of the line before, as in
+  nvim-treesitter. At the top level, a new line keeps the indentation of the
+  line before, too. `indentOnInput()` reindents a line once you type its
+  closing bracket.
 - **Folding:** the nodes that `folds.scm` captures as `@fold` fold between
   their brackets, and front matter between its fences.
 - **Comments:** `//` for lines and `/* */` for blocks.

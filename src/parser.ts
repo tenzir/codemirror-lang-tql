@@ -48,6 +48,7 @@ const ERROR_TYPE = 0xffff;
 const INDENT = 1;
 const OUTDENT = 2;
 const FOLD = 4;
+const AUTO = 8;
 
 /** Flags that captures of the indent and fold queries set on a node. */
 const captureFlags: Readonly<Record<string, number>> = {
@@ -57,14 +58,12 @@ const captureFlags: Readonly<Record<string, number>> = {
   "indent.end": OUTDENT,
   "indent.branch": OUTDENT,
   "indent.dedent": OUTDENT,
+  "indent.auto": AUTO,
   fold: FOLD,
 };
 
 const closing: Readonly<Record<string, string>> = { "(": ")", "[": "]", "{": "}" };
 const opening: Readonly<Record<string, string>> = { ")": "(", "]": "[", "}": "{" };
-
-/** Nodes inside which a new line keeps the indentation of the line before. */
-const verbatim = new Set(["string", "format_text", "comment", "frontmatter_body"]);
 
 /** Marks tokens that close an indented node, like a block's `}`. */
 const outdentProp = new NodeProp<boolean>({ deserialize: (x) => x === "true" });
@@ -85,6 +84,14 @@ const indentInside = (cx: TreeIndentContext): number => {
   }
   return cx.baseIndent + cx.unit;
 };
+
+/**
+ * Leaves the indentation of a line that starts inside a node alone, so that a
+ * new line keeps the indentation of the line before, as `@indent.auto` does in
+ * nvim-treesitter. Elsewhere, the nodes around it decide.
+ */
+const indentAuto = (cx: TreeIndentContext): number | null =>
+  cx.pos > cx.node.from && cx.pos < cx.node.to ? null : cx.continue();
 
 /**
  * Keeps the indentation of the line before at the top level, where TQL's
@@ -236,7 +243,7 @@ class Grammar {
       if (opening[typeName]) props.push([NodeProp.openedBy, [opening[typeName]]]);
       if (capture >= 0) props.push(styleTags({ [selector(typeName)]: this.tags[capture] }));
       if (flags & INDENT) props.push([indentNodeProp, indentInside]);
-      else if (verbatim.has(typeName)) props.push([indentNodeProp, () => null]);
+      else if (flags & AUTO) props.push([indentNodeProp, indentAuto]);
       if (flags & OUTDENT) props.push([outdentProp, true]);
       if (flags & FOLD) props.push([foldNodeProp, foldRange]);
       type = NodeType.define({ id: this.nextId++, name: typeName, error, props });

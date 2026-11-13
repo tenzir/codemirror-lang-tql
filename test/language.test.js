@@ -250,6 +250,16 @@ describe("editing", () => {
     assert.equal(getIndentation(state, state.doc.line(3).from), 0);
   });
 
+  it("keeps the indentation inside verbatim text", () => {
+    // The `@indent.auto` nodes: strings, the text of format strings, comments.
+    assert.equal(run(insertNewlineAndIndent, 'if x {\n  y = "a\n      b▮c"\n}'), 'if x {\n  y = "a\n      b\n      c"\n}');
+    assert.equal(run(insertNewlineAndIndent, 'x = f"a\n    b▮c"'), 'x = f"a\n    b\n    c"');
+    assert.equal(run(insertNewlineAndIndent, "/* a\n     b▮ */"), "/* a\n     b\n     */");
+    // Replacements and the end of a line comment indent by structure.
+    assert.equal(run(insertNewlineAndIndent, 'if x {\n  y = f"{[▮]}"\n}'), 'if x {\n  y = f"{[\n    \n  ]}"\n}');
+    assert.equal(run(insertNewlineAndIndent, "let $p = {a: 1, // c▮\n}"), "let $p = {a: 1, // c\n  \n}");
+  });
+
   it("folds blocks and front matter", () => {
     const state = stateOf(example);
     const fold = (text) => {
