@@ -302,14 +302,19 @@ describe("editing", () => {
 });
 
 describe("front matter", () => {
-  it("highlights and edits the body as YAML with a nested parser", () => {
-    const yaml = makeSupport({ frontmatter: yamlLanguage.parser });
-    let state = EditorState.create({ doc: example, selection: { anchor: 5 }, extensions: [yaml] });
+  /** The highlighted spans of the front matter. */
+  const frontMatter = (state) => {
     const spans = [];
     highlightTree(syntaxTree(state), classHighlighter, (from, to, cls) => {
       if (to <= example.indexOf("---", 3) + 4) spans.push([example.slice(from, to), cls]);
     });
-    assert.deepEqual(spans.slice(0, 4), [
+    return spans;
+  };
+
+  it("highlights and edits the body as YAML with a nested parser", () => {
+    const yaml = makeSupport({ nested: { yaml: yamlLanguage.parser } });
+    let state = EditorState.create({ doc: example, selection: { anchor: 5 }, extensions: [yaml] });
+    assert.deepEqual(frontMatter(state).slice(0, 4), [
       ["---\n", "tok-comment"],
       ["name", "tok-propertyName tok-definition"],
       [":", "tok-punctuation"],
@@ -321,6 +326,18 @@ describe("front matter", () => {
     insertNewlineAndIndent({ state, dispatch: (tr) => (state = tr.state) });
     assert.equal(state.doc.line(4).text, "  ");
     yaml.language.parser.delete();
+  });
+
+  it("nests the languages of the injection query", () => {
+    for (const [injections, nested] of [
+      [undefined, { json: yamlLanguage.parser }],
+      ["", { yaml: yamlLanguage.parser }],
+    ]) {
+      const support = makeSupport({ injections, nested });
+      const state = EditorState.create({ doc: example, extensions: [support] });
+      assert.deepEqual(frontMatter(state), [["---\n", "tok-comment"], ["---\n", "tok-comment"]]);
+      support.language.parser.delete();
+    }
   });
 });
 

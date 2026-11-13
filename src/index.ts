@@ -4,7 +4,8 @@ import brackets from "tree-sitter-tql/queries/tql/brackets.scm";
 import folds from "tree-sitter-tql/queries/tql/folds.scm";
 import highlights from "tree-sitter-tql/queries/tql/highlights.scm";
 import indents from "tree-sitter-tql/queries/tql/indents.scm";
-import { TqlParser, type TqlTreeSitter } from "./parser";
+import injections from "tree-sitter-tql/queries/tql/injections.scm";
+import { injectionProp, TqlParser, type TqlTreeSitter } from "./parser";
 import type { TqlCaptureTags } from "./tags";
 
 export { TqlParser, type TqlTreeSitter } from "./parser";
@@ -16,7 +17,8 @@ export const tqlQueries: {
   readonly indents: string;
   readonly folds: string;
   readonly brackets: string;
-} = { highlights, indents, folds, brackets };
+  readonly injections: string;
+} = { highlights, indents, folds, brackets, injections };
 
 const rawPrefixes = ["r", "br"].flatMap((prefix) => {
   return Array.from({ length: 9 }, (_, hashes) => prefix + "#".repeat(hashes));
@@ -32,17 +34,21 @@ export interface TqlOptions {
   readonly folds?: string;
   /** The bracket query; tree-sitter-tql's `brackets.scm` by default. */
   readonly brackets?: string;
+  /** The injection query; tree-sitter-tql's `injections.scm` by default. */
+  readonly injections?: string;
   /**
    * Style tags by capture name over the defaults of `tqlCaptureTags`, where
    * `null` leaves a capture out so that the node around it shows through.
    */
   readonly tags?: TqlCaptureTags;
   /**
-   * A parser for the body of front matter. `yamlLanguage.parser` from
-   * `@codemirror/lang-yaml` highlights and edits it as YAML; the bare parser
-   * of `@lezer/yaml` only highlights it.
+   * Parsers for the nodes that the injection query injects a language into,
+   * by the language's name. tree-sitter-tql injects `yaml` into the body of
+   * front matter: `yamlLanguage.parser` from `@codemirror/lang-yaml`
+   * highlights and edits it as YAML; the bare parser of `@lezer/yaml` only
+   * highlights it.
    */
-  readonly frontmatter?: Parser;
+  readonly nested?: Readonly<Record<string, Parser>>;
 }
 
 /**
@@ -66,9 +72,13 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
     },
     indentOnInput: /^\s*[}\]]$/,
   });
-  const frontmatter = options.frontmatter;
-  const wrapper = frontmatter
-    ? parseMixed((node) => (node.name === "frontmatter_body" ? { parser: frontmatter } : null))
+  const nested = options.nested;
+  const wrapper = nested
+    ? parseMixed((node) => {
+        const name = node.type.prop(injectionProp);
+        const parser = name !== undefined && Object.hasOwn(nested, name) ? nested[name] : undefined;
+        return parser ? { parser } : null;
+      })
     : undefined;
   const parser = new TqlParser(
     treeSitter,
@@ -77,6 +87,7 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
       indents: options.indents ?? indents,
       folds: options.folds ?? folds,
       brackets: options.brackets ?? brackets,
+      injections: options.injections ?? injections,
       tags: options.tags ?? {},
     },
     data,

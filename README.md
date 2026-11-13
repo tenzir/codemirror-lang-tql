@@ -17,7 +17,7 @@ one grammar:
 - Indentation from `indents.scm`, folding from `folds.scm`, bracket pairs from
   `brackets.scm`
 - Comment toggling
-- Front matter, optionally highlighted with a nested YAML parser
+- Nested languages from `injections.scm`, such as YAML in front matter
 
 ## Install
 
@@ -111,6 +111,9 @@ asynchronously:
   `tqlHighlighter(classes)`.
 - Install `web-tree-sitter` and `tree-sitter-tql` and serve their `.wasm`
   files, for example with Vite's `?url` imports.
+- Front matter now parses, and its fences highlight as comments. To edit its
+  body as YAML, pass `nested: { yaml: yamlLanguage.parser }`, as shown under
+  [Front matter](#front-matter).
 
 ## API
 
@@ -123,7 +126,13 @@ function tqlHighlighter(classes: Readonly<Record<string, string>>): Highlighter;
 
 const tqlCaptureTags: Readonly<Record<string, Tag>>;
 
-const tqlQueries: { highlights: string; indents: string; folds: string; brackets: string };
+const tqlQueries: {
+  highlights: string;
+  indents: string;
+  folds: string;
+  brackets: string;
+  injections: string;
+};
 
 interface TqlTreeSitter {
   Parser: typeof import("web-tree-sitter").Parser; // after Parser.init()
@@ -136,8 +145,9 @@ interface TqlOptions {
   indents?: string; // indent query, tree-sitter-tql's by default
   folds?: string; // fold query, tree-sitter-tql's by default
   brackets?: string; // bracket query, tree-sitter-tql's by default
+  injections?: string; // injection query, tree-sitter-tql's by default
   tags?: TqlCaptureTags; // capture tags over the defaults
-  frontmatter?: Parser; // e.g. yamlLanguage.parser for the front matter body
+  nested?: Readonly<Record<string, Parser>>; // parsers by injected language
 }
 
 interface LoadTqlOptions extends TqlOptions {
@@ -237,17 +247,21 @@ const extensions = [
 ## Front matter
 
 TQL files may start with YAML front matter between `---` fences. The fences
-highlight as comments. To edit the body as YAML, pass the parser of
+highlight as comments. tree-sitter-tql's `injections.scm` injects the `yaml`
+language into the body, and `nested` maps an injected language to the parser
+that parses it. To edit the body as YAML, pass the parser of
 `@codemirror/lang-yaml`'s language, which brings YAML's highlighting,
 indentation, and `#` comments:
 
 ```ts
 import { yamlLanguage } from "@codemirror/lang-yaml";
 
-const tqlSupport = tql({ Parser, Query, language }, { frontmatter: yamlLanguage.parser });
+const tqlSupport = tql({ Parser, Query, language }, { nested: { yaml: yamlLanguage.parser } });
 ```
 
-The bare parser of `@lezer/yaml` only highlights the body.
+The bare parser of `@lezer/yaml` only highlights the body. A language without
+a parser in `nested` stays part of the TQL tree. The bridge reads the language
+from `#set! injection.language`, not from `@injection.language` captures.
 
 ## Lifetime and performance
 
@@ -288,8 +302,8 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
 - The bundled queries come from tree-sitter-tql 1.3.0 (`tqlQueries`). A query
   that names a node type the loaded grammar lacks does not compile, and `tql()`
   throws. With a different version of the grammar, pass its queries as
-  `highlights`, `indents`, `folds`, and `brackets`, for example as Vite `?raw`
-  imports.
+  `highlights`, `indents`, `folds`, `brackets`, and `injections`, for example
+  as Vite `?raw` imports.
 - A nested parse over several ranges sees the gaps between them as spaces, so
   a token cannot continue across a gap.
 - Around syntax errors, tree-sitter may recover differently when it resumes a

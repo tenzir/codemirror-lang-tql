@@ -38,6 +38,7 @@ export interface TqlQueries {
   readonly indents: string;
   readonly folds: string;
   readonly brackets: string;
+  readonly injections: string;
   readonly tags: TqlCaptureTags;
 }
 
@@ -66,6 +67,9 @@ const captureFlags: Readonly<Record<string, number>> = {
   open: OPEN,
   close: CLOSE,
 };
+
+/** The language that the injection query injects into a node. */
+export const injectionProp = new NodeProp<string>();
 
 /** Marks tokens that close an indented node, like a block's `}`. */
 const outdentProp = new NodeProp<boolean>({ deserialize: (x) => x === "true" });
@@ -179,7 +183,9 @@ class Grammar {
     try {
       this.query = new Query(
         language,
-        [queries.highlights, queries.indents, queries.folds, queries.brackets].join("\n"),
+        [queries.highlights, queries.indents, queries.folds, queries.brackets, queries.injections].join(
+          "\n",
+        ),
       );
     } finally {
       highlights.delete();
@@ -221,8 +227,10 @@ class Grammar {
 
   /** Runs the queries on `node` and records what they capture on nodes. */
   capture(node: TreeSitter.Node, options: TreeSitter.QueryOptions, captured: Map<number, Captured>) {
-    for (const { name, node: target, patternIndex } of this.query.captures(node, options)) {
+    for (const { name, node: target, patternIndex, setProperties } of this.query.captures(node, options)) {
       if (patternIndex >= this.#indents) {
+        const injection = name === "injection.content" && setProperties?.["injection.language"];
+        if (injection) capturedAt(captured, target.id).injection = injection;
         const flags = captureFlags[name];
         if (!flags) continue;
         const entry = capturedAt(captured, target.id);
@@ -252,7 +260,8 @@ class Grammar {
     const flags = entry?.flags ?? 0;
     const pair = entry && this.#pairs.get(entry.bracket);
     const partner = flags & OPEN ? pair?.close : flags & CLOSE ? pair?.open : undefined;
-    const key = `${typeId}:${capture}:${flags}:${partner ?? ""}`;
+    const injection = entry?.injection;
+    const key = `${typeId}:${capture}:${flags}:${partner ?? ""}:${injection ?? ""}`;
     let type = this.types.get(key);
     if (type === undefined) {
       const error = typeId === ERROR_TYPE;
@@ -265,6 +274,7 @@ class Grammar {
       else if (flags & AUTO) props.push([indentNodeProp, indentAuto]);
       if (flags & OUTDENT) props.push([outdentProp, true]);
       if (flags & FOLD) props.push([foldNodeProp, foldRange]);
+      if (injection) props.push([injectionProp, injection]);
       type = NodeType.define({ id: this.nextId++, name: typeName, error, props });
       this.types.set(key, type);
     }
@@ -278,7 +288,13 @@ class Grammar {
 }
 
 /** What the queries captured on a node. */
-type Captured = { capture: number; pattern: number; flags: number; bracket: number };
+type Captured = {
+  capture: number;
+  pattern: number;
+  flags: number;
+  bracket: number;
+  injection?: string;
+};
 
 const capturedAt = (captured: Map<number, Captured>, id: number): Captured => {
   let entry = captured.get(id);
