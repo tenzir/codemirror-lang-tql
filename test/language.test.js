@@ -5,7 +5,7 @@ import { insertNewlineAndIndent, toggleComment } from "@codemirror/commands";
 import { yamlLanguage } from "@codemirror/lang-yaml";
 import { foldable, getIndentation, matchBrackets, syntaxTree } from "@codemirror/language";
 import { EditorState } from "@codemirror/state";
-import { parseMixed } from "@lezer/common";
+import { NodeProp, parseMixed } from "@lezer/common";
 import { classHighlighter, highlightTree, tags as t } from "@lezer/highlight";
 import { tqlCaptureTags, tqlHighlighter } from "../dist/index.js";
 import {
@@ -272,6 +272,23 @@ describe("editing", () => {
     assert.match(fold("match"), /^\n {2}22 => .*\n$/s);
     assert.equal(fold("if orig_bytes"), '\n  severity = "high"\n  note = r#"Uploaded "{orig_bytes}" bytes"#\n');
     assert.equal(fold("gateway"), null);
+  });
+
+  it("pairs the brackets of the bracket query", () => {
+    const doc = "x = {a: 1,\n  b: [2,\n  3]\n}";
+    const squares = makeSupport({ brackets: '("[" @open "]" @close)' });
+    const closedBy = (with_) => parse(doc, with_).resolveInner(4, 1).type.prop(NodeProp.closedBy);
+    assert.deepEqual(closedBy(support), ["}"]);
+    assert.equal(closedBy(squares), undefined);
+    // A fold starts after an opening bracket, or else at the end of the line.
+    const fold = (with_) => {
+      const state = EditorState.create({ doc, extensions: [with_] });
+      const range = foldable(state, 0, state.doc.line(1).to);
+      return doc.slice(range.from, range.to);
+    };
+    assert.equal(fold(support), "a: 1,\n  b: [2,\n  3]\n");
+    assert.equal(fold(squares), "\n  b: [2,\n  3]");
+    squares.language.parser.delete();
   });
 
   it("toggles comments", () => {

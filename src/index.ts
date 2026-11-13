@@ -1,5 +1,6 @@
 import { defineLanguageFacet, Language, LanguageSupport } from "@codemirror/language";
 import { type Parser, parseMixed } from "@lezer/common";
+import brackets from "tree-sitter-tql/queries/tql/brackets.scm";
 import folds from "tree-sitter-tql/queries/tql/folds.scm";
 import highlights from "tree-sitter-tql/queries/tql/highlights.scm";
 import indents from "tree-sitter-tql/queries/tql/indents.scm";
@@ -14,7 +15,8 @@ export const tqlQueries: {
   readonly highlights: string;
   readonly indents: string;
   readonly folds: string;
-} = { highlights, indents, folds };
+  readonly brackets: string;
+} = { highlights, indents, folds, brackets };
 
 const rawPrefixes = ["r", "br"].flatMap((prefix) => {
   return Array.from({ length: 9 }, (_, hashes) => prefix + "#".repeat(hashes));
@@ -28,6 +30,8 @@ export interface TqlOptions {
   readonly indents?: string;
   /** The fold query; tree-sitter-tql's `folds.scm` by default. */
   readonly folds?: string;
+  /** The bracket query; tree-sitter-tql's `brackets.scm` by default. */
+  readonly brackets?: string;
   /**
    * Style tags by capture name over the defaults of `tqlCaptureTags`, where
    * `null` leaves a capture out so that the node around it shows through.
@@ -57,7 +61,6 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
   const data = defineLanguageFacet({
     commentTokens: { line: "//", block: { open: "/*", close: "*/" } },
     closeBrackets: {
-      brackets: ["(", "[", "{", '"', "'"],
       // Raw strings take up to 8 hashes, as in tree-sitter-tql.
       stringPrefixes: ["f", "b", ...rawPrefixes],
     },
@@ -73,6 +76,7 @@ export function tql(treeSitter: TqlTreeSitter, options: TqlOptions = {}): Langua
       highlights: options.highlights ?? highlights,
       indents: options.indents ?? indents,
       folds: options.folds ?? folds,
+      brackets: options.brackets ?? brackets,
       tags: options.tags ?? {},
     },
     data,

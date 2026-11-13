@@ -14,7 +14,8 @@ one grammar:
   `@lezer/highlight` tags
 - Bracket matching and quote pairing that skip strings and comments, including
   strings that are not closed yet
-- Indentation from `indents.scm`, folding from `folds.scm`
+- Indentation from `indents.scm`, folding from `folds.scm`, bracket pairs from
+  `brackets.scm`
 - Comment toggling
 - Front matter, optionally highlighted with a nested YAML parser
 
@@ -122,7 +123,7 @@ function tqlHighlighter(classes: Readonly<Record<string, string>>): Highlighter;
 
 const tqlCaptureTags: Readonly<Record<string, Tag>>;
 
-const tqlQueries: { highlights: string; indents: string; folds: string };
+const tqlQueries: { highlights: string; indents: string; folds: string; brackets: string };
 
 interface TqlTreeSitter {
   Parser: typeof import("web-tree-sitter").Parser; // after Parser.init()
@@ -134,6 +135,7 @@ interface TqlOptions {
   highlights?: string; // highlight query, tree-sitter-tql's by default
   indents?: string; // indent query, tree-sitter-tql's by default
   folds?: string; // fold query, tree-sitter-tql's by default
+  brackets?: string; // bracket query, tree-sitter-tql's by default
   tags?: TqlCaptureTags; // capture tags over the defaults
   frontmatter?: Parser; // e.g. yamlLanguage.parser for the front matter body
 }
@@ -215,8 +217,9 @@ const extensions = [
   as a string that runs to the end of the document, as TQL's strings may span
   lines, so typing the closing quote doesn't insert a pair. The same goes for a
   `/*` comment without its `*/`.
-- **Bracket matching:** `(`, `[`, and `{` match their closing brackets in the
-  tree, so brackets in strings and comments don't count.
+- **Bracket matching:** the tokens that `brackets.scm` pairs as `@open` and
+  `@close` (`( )`, `[ ]`, and `{ }`) match in the tree, so brackets in strings
+  and comments don't count.
 - **Indentation:** lines inside the nodes that `indents.scm` captures as
   `@indent` (blocks, pipelines, records, lists, match arms) are indented one
   unit past the line where the node starts, and a line starting with an
@@ -228,7 +231,7 @@ const extensions = [
   line before, too. `indentOnInput()` reindents a line once you type its
   closing bracket.
 - **Folding:** the nodes that `folds.scm` captures as `@fold` fold between
-  their brackets, and front matter between its fences.
+  their `@open` and `@close` brackets, and front matter between its fences.
 - **Comments:** `//` for lines and `/* */` for blocks.
 
 ## Front matter
@@ -285,7 +288,8 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
 - The bundled queries come from tree-sitter-tql 1.3.0 (`tqlQueries`). A query
   that names a node type the loaded grammar lacks does not compile, and `tql()`
   throws. With a different version of the grammar, pass its queries as
-  `highlights`, `indents`, and `folds`, for example as Vite `?raw` imports.
+  `highlights`, `indents`, `folds`, and `brackets`, for example as Vite `?raw`
+  imports.
 - A nested parse over several ranges sees the gaps between them as spaces, so
   a token cannot continue across a gap.
 - Around syntax errors, tree-sitter may recover differently when it resumes a

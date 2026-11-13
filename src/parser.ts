@@ -37,6 +37,7 @@ export interface TqlQueries {
   readonly highlights: string;
   readonly indents: string;
   readonly folds: string;
+  readonly brackets: string;
   readonly tags: TqlCaptureTags;
 }
 
@@ -49,6 +50,8 @@ const INDENT = 1;
 const OUTDENT = 2;
 const FOLD = 4;
 const AUTO = 8;
+const OPEN = 16;
+const CLOSE = 32;
 
 /** Flags that captures of the indent and fold queries set on a node. */
 const captureFlags: Readonly<Record<string, number>> = {
@@ -60,10 +63,9 @@ const captureFlags: Readonly<Record<string, number>> = {
   "indent.dedent": OUTDENT,
   "indent.auto": AUTO,
   fold: FOLD,
+  open: OPEN,
+  close: CLOSE,
 };
-
-const closing: Readonly<Record<string, string>> = { "(": ")", "[": "]", "{": "}" };
-const opening: Readonly<Record<string, string>> = { ")": "(", "]": "[", "}": "{" };
 
 /** Marks tokens that close an indented node, like a block's `}`. */
 const outdentProp = new NodeProp<boolean>({ deserialize: (x) => x === "true" });
@@ -156,6 +158,8 @@ class Grammar {
   readonly tags: Tag[] = [];
   /** The index of a coloring capture, by name. */
   readonly captures = new Map<string, number>();
+  /** The tokens that a bracket pattern pairs, by pattern index. */
+  readonly #pairs = new Map<number, { open?: string; close?: string }>();
   readonly top: NodeType;
   readonly types = new Map<string, NodeType>();
   readonly language: TreeSitter.Language;
@@ -173,7 +177,10 @@ class Grammar {
     const names = highlights.captureNames;
     this.#indents = highlights.patternCount();
     try {
-      this.query = new Query(language, [queries.highlights, queries.indents, queries.folds].join("\n"));
+      this.query = new Query(
+        language,
+        [queries.highlights, queries.indents, queries.folds, queries.brackets].join("\n"),
+      );
     } finally {
       highlights.delete();
     }
@@ -217,7 +224,16 @@ class Grammar {
     for (const { name, node: target, patternIndex } of this.query.captures(node, options)) {
       if (patternIndex >= this.#indents) {
         const flags = captureFlags[name];
-        if (flags) capturedAt(captured, target.id).flags |= flags;
+        if (!flags) continue;
+        const entry = capturedAt(captured, target.id);
+        entry.flags |= flags;
+        if (flags & (OPEN | CLOSE)) {
+          // Each bracket pattern pairs one opening and one closing token.
+          let pair = this.#pairs.get(patternIndex);
+          if (pair === undefined) this.#pairs.set(patternIndex, (pair = {}));
+          pair[name as "open" | "close"] = target.type;
+          entry.bracket = patternIndex;
+        }
         continue;
       }
       const capture = this.captures.get(name);
@@ -231,16 +247,19 @@ class Grammar {
     }
   }
 
-  /** The node type for a tree-sitter type with a capture and flags. */
-  type(typeId: number, name: () => string, capture: number, flags: number): NodeType {
-    const key = `${typeId}:${capture}:${flags}`;
+  /** The node type for a tree-sitter type with what the queries captured. */
+  type(typeId: number, name: () => string, capture: number, entry?: Captured): NodeType {
+    const flags = entry?.flags ?? 0;
+    const pair = entry && this.#pairs.get(entry.bracket);
+    const partner = flags & OPEN ? pair?.close : flags & CLOSE ? pair?.open : undefined;
+    const key = `${typeId}:${capture}:${flags}:${partner ?? ""}`;
     let type = this.types.get(key);
     if (type === undefined) {
       const error = typeId === ERROR_TYPE;
       const typeName = error ? "⚠" : name();
       const props: Array<NodePropSource | [NodeProp<any>, any]> = [];
-      if (closing[typeName]) props.push([NodeProp.closedBy, [closing[typeName]]]);
-      if (opening[typeName]) props.push([NodeProp.openedBy, [opening[typeName]]]);
+      if (partner && flags & OPEN) props.push([NodeProp.closedBy, [partner]]);
+      if (partner && flags & CLOSE) props.push([NodeProp.openedBy, [partner]]);
       if (capture >= 0) props.push(styleTags({ [selector(typeName)]: this.tags[capture] }));
       if (flags & INDENT) props.push([indentNodeProp, indentInside]);
       else if (flags & AUTO) props.push([indentNodeProp, indentAuto]);
@@ -259,12 +278,12 @@ class Grammar {
 }
 
 /** What the queries captured on a node. */
-type Captured = { capture: number; pattern: number; flags: number };
+type Captured = { capture: number; pattern: number; flags: number; bracket: number };
 
 const capturedAt = (captured: Map<number, Captured>, id: number): Captured => {
   let entry = captured.get(id);
   if (entry === undefined) {
-    entry = { capture: -1, pattern: -1, flags: 0 };
+    entry = { capture: -1, pattern: -1, flags: 0, bracket: -1 };
     captured.set(id, entry);
   }
   return entry;
@@ -438,7 +457,7 @@ class TqlParse implements PartialParse {
         }
 
         if (cursor.nodeIsMissing) {
-          add(new Tree(grammar.type(ERROR_TYPE, () => "⚠", -1, 0), [], [], 0), from);
+          add(new Tree(grammar.type(ERROR_TYPE, () => "⚠", -1), [], [], 0), from);
         } else {
           // Query small subtrees once. For larger ones, query only patterns
           // rooted here (and sibling patterns, if any), then visit children.
@@ -453,7 +472,7 @@ class TqlParse implements PartialParse {
           const parent = frames[frames.length - 1];
           // Uncolored descendants inherit the enclosing capture.
           const capture = entry && entry.capture >= 0 ? entry.capture : parent.capture;
-          const type = grammar.type(cursor.nodeTypeId, () => cursor!.nodeType, capture, entry?.flags ?? 0);
+          const type = grammar.type(cursor.nodeTypeId, () => cursor!.nodeType, capture, entry);
           const to = cursor.endIndex;
           if (cursor.gotoFirstChild()) {
             frames.push({ type, from, to, capture, children: [], positions: [] });
