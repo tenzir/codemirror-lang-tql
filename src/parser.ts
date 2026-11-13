@@ -63,9 +63,6 @@ const captureFlags: Readonly<Record<string, number>> = {
 const closing: Readonly<Record<string, string>> = { "(": ")", "[": "]", "{": "}" };
 const opening: Readonly<Record<string, string>> = { ")": "(", "]": "[", "}": "{" };
 
-/** Nodes whose text is taken as is, quotes and comment markers included. */
-const literals = new Set(["string", "format_expr", "comment", "frontmatter"]);
-
 /** Nodes inside which a new line keeps the indentation of the line before. */
 const verbatim = new Set(["string", "format_text", "comment", "frontmatter_body"]);
 
@@ -120,60 +117,6 @@ const foldRange = (
 
 /** Quotes a node name for `styleTags`, which splits selectors at spaces. */
 const selector = (name: string) => JSON.stringify(name).replace(/ /g, "\\u0020");
-
-/**
- * The string whose opening quote is at `quote`: where it starts, prefixes
- * included, and where its closing quote ends, if it has one.
- */
-const stringAt = (text: string, quote: number): { from: number; to: number | null } => {
-  const boundary = (at: number) => at === 0 || !/\w/.test(text[at - 1]);
-  let at = quote;
-  while (at > 0 && text[at - 1] === "#") at--;
-  const hashes = quote - at;
-  for (const prefix of ["br", "r"]) {
-    const from = at - prefix.length;
-    if (from >= 0 && text.startsWith(prefix, from) && boundary(from)) {
-      // A raw string ends at the first quote followed by its hashes.
-      const close = text.indexOf(`"${"#".repeat(hashes)}`, quote + 1);
-      return { from, to: close < 0 ? null : close + 1 + hashes };
-    }
-  }
-  let from = quote;
-  if (hashes === 0 && at > 0 && "bf".includes(text[at - 1]) && boundary(at - 1)) from = at - 1;
-  // A format string's replacements are expressions, whose strings and
-  // comments may hold quotes and braces of their own.
-  const format = text[from] === "f";
-  let depth = 0;
-  for (let pos = quote + 1; pos < text.length; pos++) {
-    const char = text[pos];
-    if (depth > 0) {
-      if (char === "{") depth++;
-      else if (char === "}") depth--;
-      else if (char === '"' || char === "'") {
-        const inner = stringAt(text, pos).to;
-        if (inner === null) return { from, to: null };
-        pos = inner - 1;
-      } else if (text.startsWith("//", pos)) {
-        const end = text.indexOf("\n", pos);
-        if (end < 0) return { from, to: null };
-        pos = end;
-      } else if (text.startsWith("/*", pos)) {
-        const end = text.indexOf("*/", pos + 2);
-        if (end < 0) return { from, to: null };
-        pos = end + 1;
-      }
-    } else if (char === "\\") {
-      pos++;
-    } else if (format && (char === "{" || char === "}") && text[pos + 1] === char) {
-      pos++;
-    } else if (format && char === "{") {
-      depth++;
-    } else if (char === text[quote]) {
-      return { from, to: pos + 1 };
-    }
-  }
-  return { from, to: null };
-};
 
 /** How long one step of a parse may take before it yields, in milliseconds. */
 const STEP_TIME = 4;
@@ -230,7 +173,7 @@ class Grammar {
     this.queryDepth = Array.from({ length: this.query.patternCount() }, (_, i) => i).some(
       (i) => !this.query.isPatternRooted(i),
     ) ? 1 : 0;
-    for (const name of [...names, "string", "comment"]) {
+    for (const name of names) {
       const tag = captureTag(name, queries.tags);
       if (tag && !this.captures.has(name)) {
         this.captures.set(name, this.tags.length);
@@ -302,12 +245,6 @@ class Grammar {
     return type;
   }
 
-  /** The node type of an unterminated string or comment. */
-  unterminated(name: "string" | "comment"): NodeType {
-    const typeId = this.language.idForNodeType(name, true) ?? ERROR_TYPE;
-    return this.type(typeId, () => name, this.captures.get(name) ?? -1, 0);
-  }
-
   delete() {
     for (const resources of this.#pending) this.release(resources);
     this.query.delete();
@@ -324,47 +261,6 @@ const capturedAt = (captured: Map<number, Captured>, id: number): Captured => {
     captured.set(id, entry);
   }
   return entry;
-};
-
-/**
- * `tree`, which starts at `offset`, cut at `at`, where an unterminated string
- * or comment starts: without the nodes after it, except a first child that
- * `keep` says to keep, with the tokens across it shortened, and with the
- * nodes across it extended to `end`, the deepest of which takes `literal`.
- */
-const cutAt = (tree: Tree, offset: number, at: number, end: number, literal: Tree, keep = false): Tree => {
-  const path: Array<{ tree: Tree; offset: number; count: number }> = [];
-  for (;;) {
-    let count = 0;
-    while (
-      count < tree.children.length &&
-      (offset + tree.positions[count] < at || (keep && count === 0))
-    ) count++;
-    path.push({ tree, offset, count });
-    const last = count - 1;
-    const child = tree.children[last] as Tree | undefined;
-    const start = offset + tree.positions[last];
-    if (!child || start + child.length <= at || child.children.length === 0) break;
-    tree = child;
-    offset = start;
-    keep = false;
-  }
-  let result: Tree | null = null;
-  while (path.length) {
-    const { tree, offset, count } = path.pop()!;
-    const children = tree.children.slice(0, count) as Tree[];
-    const positions = tree.positions.slice(0, count);
-    const last = count - 1;
-    const start = offset + positions[last];
-    if (last >= 0 && start + children[last].length > at)
-      children[last] = result ?? new Tree(children[last].type, [], [], at - start);
-    if ((last < 0 ? offset : start + children[last].length) < end) {
-      children.push(literal);
-      positions.push(at - offset);
-    }
-    result = new Tree(tree.type, children, positions, end - offset);
-  }
-  return result!;
 };
 
 /**
@@ -435,7 +331,6 @@ interface Frame {
   readonly to: number;
   /** The capture that the node's children take unless they have their own. */
   readonly capture: number;
-  readonly literal: boolean;
   readonly children: Tree[];
   readonly positions: number[];
 }
@@ -503,8 +398,6 @@ class TqlParse implements PartialParse {
 
       const captured = new Map<number, Captured>();
       let queriedDepth = Infinity;
-      const literalRanges: number[] = [];
-      let literalDepth = 0;
       cursor = resources.cursor = tree.walk();
       const program = cursor.nodeType === "program";
       if (program) grammar.capture(tree.rootNode, { maxStartDepth: grammar.queryDepth }, captured);
@@ -513,7 +406,6 @@ class TqlParse implements PartialParse {
         from: 0,
         to: text.length,
         capture: -1,
-        literal: false,
         children: [],
         positions: [],
       }];
@@ -524,7 +416,6 @@ class TqlParse implements PartialParse {
       };
       const close = (end?: number) => {
         const frame = frames.pop()!;
-        if (frame.literal) literalDepth--;
         add(new Tree(frame.type, frame.children, frame.positions, (end ?? frame.to) - frame.from), frame.from);
       };
 
@@ -557,11 +448,8 @@ class TqlParse implements PartialParse {
           const capture = entry && entry.capture >= 0 ? entry.capture : parent.capture;
           const type = grammar.type(cursor.nodeTypeId, () => cursor!.nodeType, capture, entry?.flags ?? 0);
           const to = cursor.endIndex;
-          const literal = literals.has(type.name);
-          if (literal && literalDepth === 0 && to > from) literalRanges.push(from, to);
           if (cursor.gotoFirstChild()) {
-            if (literal) literalDepth++;
-            frames.push({ type, from, to, capture, literal, children: [], positions: [] });
+            frames.push({ type, from, to, capture, children: [], positions: [] });
             continue;
           }
           add(new Tree(type, [], [], to - from), from);
@@ -577,44 +465,12 @@ class TqlParse implements PartialParse {
       }
       while (frames.length > 1) close(end);
       const top = frames[0];
-      let result = new Tree(top.type, top.children, top.positions, end);
+      const result = new Tree(top.type, top.children, top.positions, end);
       this.parsedPos = this.from + end;
       cursor.delete();
       cursor = resources.cursor = null;
       tree.delete();
       tree = resources.tree = null;
-
-      // Tree-sitter only lexes closed strings/comments. Look outside its
-      // literals for an opener with no closer; that literal runs to the end.
-      const pattern = /["']|\/\*/g;
-      let literal = 0;
-      for (let steps = 1; ; steps++) {
-        if ((steps & 255) === 0 && now() > this.#deadline) yield;
-        const match = pattern.exec(text);
-        if (!match || match.index >= end) break;
-        const at = match.index;
-        while (literal < literalRanges.length && literalRanges[literal + 1] <= at) literal += 2;
-        if (literal < literalRanges.length && literalRanges[literal] <= at) {
-          pattern.lastIndex = Math.max(literalRanges[literal + 1], at + 1);
-          continue;
-        }
-        let from = at;
-        let to: number | null;
-        const name = match[0] === "/*" ? "comment" : "string";
-        if (name === "comment") {
-          const close = text.indexOf("*/", at + 2);
-          to = close < 0 ? null : close + 2;
-        } else {
-          ({ from, to } = stringAt(text, at));
-        }
-        if (to !== null) {
-          pattern.lastIndex = to;
-          continue;
-        }
-        const node = new Tree(grammar.unterminated(name), [], [], end - from);
-        result = cutAt(result, 0, from, end, node, !program);
-        break;
-      }
       return result;
     } catch (error) {
       console.error("Failed to parse TQL", error);

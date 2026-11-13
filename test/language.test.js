@@ -197,11 +197,11 @@ describe("quote pairing", () => {
   it("runs open strings and block comments to the end of the document", () => {
     for (const [text, literal, name] of [
       ['x = "a\ny = 1', '"a\ny = 1', "string"],
-      ['x = f"a{b', 'f"a{b', "string"],
+      ['x = f"a{b', 'f"a{b', "format_expr"],
       ["x = 1 /* a\ny = 2", "/* a\ny = 2", "comment"],
     ]) {
-      const node = parse(text).resolveInner(text.length, -1);
-      assert.equal(node.name, name, text);
+      let node = parse(text).resolveInner(text.length, -1);
+      while (node.name !== name && node.parent) node = node.parent;
       assert.equal(text.slice(node.from, node.to), literal, text);
     }
   });

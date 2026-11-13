@@ -45,8 +45,8 @@ importers:
         specifier: ^6.5.1
         version: 6.5.1(rollup@4.68.2)(typescript@5.9.3)
       tree-sitter-tql:
-        specifier: 1.2.1
-        version: 1.2.1
+        specifier: 1.3.0
+        version: 1.3.0
       tslib:
         specifier: ^2.9.1
         version: 2.9.1
@@ -361,8 +361,8 @@ packages:
     resolution: {integrity: sha512-ot0WnXS9fgdkgIcePe6RHNk1WA8+muPa6cSjeR3V8K27q9BB1rTE3R1p7Hv0z1ZyAc8s6Vvv8DIyWf681MAt0w==}
     engines: {node: '>= 0.4'}
 
-  tree-sitter-tql@1.2.1:
-    resolution: {integrity: sha512-sd43c1hPgvoKaxJ26j2MvR1pN7HOk8fZPZuj8eI/Rmn5MVU28va9XzBUGrxVvtSHO+TQEfjaMsN2Zc4QDOZ8Xg==}
+  tree-sitter-tql@1.3.0:
+    resolution: {integrity: sha512-8eotE5FgBG8evoHiIXNBIFdAF2y2wRDGoPYYyVSmj/QXQFEmJQLjggPetDQzL2P6HzgkSp2HFJK45IZPv3M2/g==}
     peerDependencies:
       tree-sitter: ^0.25.1
     peerDependenciesMeta:
@@ -673,7 +673,7 @@ snapshots:
 
   supports-preserve-symlinks-flag@1.0.0: {}
 
-  tree-sitter-tql@1.2.1:
+  tree-sitter-tql@1.3.0:
     dependencies:
       node-addon-api: 8.9.2
       node-gyp-build: 4.8.4

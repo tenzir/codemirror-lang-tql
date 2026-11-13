@@ -211,12 +211,10 @@ const extensions = [
 
 - **Quote pairing:** `closeBrackets()` pairs `(`, `[`, `{`, `"`, and `'`, also
   after the string prefixes `f` and `b`, and the raw prefixes `r` and `br`
-  with up to 8 `#`. Tree-sitter only lexes a
-  string once it is closed; until then, it sees an error at the quote and
-  parses what follows as code. The bridge turns the first quote that has no
-  closing quote into a string that runs to the end of the document, as TQL's
-  strings may span lines, so typing the closing quote doesn't insert a pair.
-  The same goes for a `/*` comment without its `*/`.
+  with up to 8 `#`. tree-sitter-tql parses a string without its closing quote
+  as a string that runs to the end of the document, as TQL's strings may span
+  lines, so typing the closing quote doesn't insert a pair. The same goes for a
+  `/*` comment without its `*/`.
 - **Bracket matching:** `(`, `[`, and `{` match their closing brackets in the
   tree, so brackets in strings and comments don't count.
 - **Indentation:** lines inside the nodes that `indents.scm` captures as
@@ -280,15 +278,12 @@ highlightTree(tree, highlighter, (from, to, classes) => { /* … */ });
 
 ## Limitations
 
-- The bundled queries come from tree-sitter-tql 1.2.1 (`tqlQueries`). A query
+- The bundled queries come from tree-sitter-tql 1.3.0 (`tqlQueries`). A query
   that names a node type the loaded grammar lacks does not compile, and `tql()`
   throws. With a different version of the grammar, pass its queries as
   `highlights`, `indents`, and `folds`, for example as Vite `?raw` imports.
 - A nested parse over several ranges sees the gaps between them as spaces, so
   a token cannot continue across a gap.
-- Recognizing strings that are not closed yet looks at the text around quotes
-  that tree-sitter did not parse as part of a string, so it knows TQL's quote
-  and prefix rules. Of several such strings, the first one wins.
 - Around syntax errors, tree-sitter may recover differently when it resumes a
   parse that yielded than when it parses the whole document at once.
 - The 4 ms target is not a hard deadline. Custom queries that match many
