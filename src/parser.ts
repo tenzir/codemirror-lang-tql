@@ -184,27 +184,26 @@ class Grammar {
     this.language = language;
     this.Parser = TSParser;
     const highlights = new Query(language, queries.highlights);
-    const names = highlights.captureNames;
-    this.#indents = highlights.patternCount();
+    // Owned here until the end, so that a failure frees it.
+    let query: TreeSitter.Query | null = null;
     try {
-      this.query = new Query(
-        language,
-        [queries.highlights, queries.indents, queries.folds, queries.brackets, queries.injections].join(
-          "\n",
-        ),
-      );
+      this.#indents = highlights.patternCount();
+      for (const name of highlights.captureNames) {
+        const tag = captureTag(name, queries.tags);
+        if (tag && !this.captures.has(name)) {
+          this.captures.set(name, this.tags.length);
+          this.tags.push(tag);
+        }
+      }
+      const { indents, folds, brackets, injections } = queries;
+      query = new Query(language, [queries.highlights, indents, folds, brackets, injections].join("\n"));
+      const patterns = Array.from({ length: query.patternCount() }, (_, i) => i);
+      this.queryDepth = patterns.some((i) => !query!.isPatternRooted(i)) ? 1 : 0;
+      this.query = query;
+      query = null;
     } finally {
       highlights.delete();
-    }
-    this.queryDepth = Array.from({ length: this.query.patternCount() }, (_, i) => i).some(
-      (i) => !this.query.isPatternRooted(i),
-    ) ? 1 : 0;
-    for (const name of names) {
-      const tag = captureTag(name, queries.tags);
-      if (tag && !this.captures.has(name)) {
-        this.captures.set(name, this.tags.length);
-        this.tags.push(tag);
-      }
+      query?.delete();
     }
     this.top = NodeType.define({
       id: 0,

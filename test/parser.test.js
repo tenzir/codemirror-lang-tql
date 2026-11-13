@@ -470,5 +470,12 @@ describe("resources", () => {
     });
     assert.throws(() => makeSupport({ indents: "(nope) @indent" }));
     assert.deepEqual(deleted, ["Query"]);
+    // Also when setting up fails after the combined query compiled.
+    deleted.length = 0;
+    mock.method(TreeSitter.Query.prototype, "isPatternRooted", () => {
+      throw new Error("boom");
+    });
+    assert.throws(() => makeSupport(), /boom/);
+    assert.deepEqual(deleted, ["Query", "Query"]);
   });
 });
