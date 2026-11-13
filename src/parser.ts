@@ -175,24 +175,31 @@ const stringAt = (text: string, quote: number): { from: number; to: number | nul
   return { from, to: null };
 };
 
-/** A string or block comment that runs to the end of the document. */
-type Unterminated = { readonly from: number; readonly name: "string" | "comment" };
-
 /** How long one step of a parse may take before it yields, in milliseconds. */
 const STEP_TIME = 4;
 
-/** How much text one run of the queries covers at most, in UTF-16 code units. */
-const QUERY_SPAN = 4096;
-
-/** How many unfinished parses may hold tree-sitter memory between steps. */
-const MAX_PENDING = 4;
-
 const now = () => performance.now();
+
+/** Native handles only: this must not retain the parse or its generator. */
+class ParseResources {
+  parser: TreeSitter.Parser | null = null;
+  tree: TreeSitter.Tree | null = null;
+  cursor: TreeSitter.TreeCursor | null = null;
+
+  delete() {
+    this.cursor?.delete();
+    this.tree?.delete();
+    this.parser?.delete();
+    this.cursor = this.tree = this.parser = null;
+  }
+}
 
 /** The node types, captures, and queries of one TQL parser. */
 class Grammar {
   /** The highlight, indent, and fold queries in one, which runs faster. */
   readonly query: TreeSitter.Query;
+  /** Sibling patterns start one level below the parent that contains them. */
+  readonly queryDepth: number;
   /** The index of the first pattern that is not a highlight. */
   readonly #indents: number;
   /** The tags of the captures that color, by index. */
@@ -202,40 +209,27 @@ class Grammar {
   readonly top: NodeType;
   readonly types = new Map<string, NodeType>();
   readonly language: TreeSitter.Language;
-  readonly #Parser: typeof TreeSitter.Parser;
-  /** Tree-sitter parsers that no parse uses. */
-  readonly #idle: TreeSitter.Parser[] = [];
-  /** The unfinished parses that hold tree-sitter memory. */
-  readonly #pending = new Set<TqlParse>();
+  readonly Parser: typeof TreeSitter.Parser;
+  /** Handles stay enumerable for delete(), without retaining dropped parses. */
+  readonly #pending = new Set<ParseResources>();
+  readonly #collected = new FinalizationRegistry<ParseResources>((resources) => this.release(resources));
   nextId = 1;
 
   constructor(treeSitter: TqlTreeSitter, queries: TqlQueries, data: LanguageData) {
     const { Parser: TSParser, Query, language } = treeSitter;
     this.language = language;
-    this.#Parser = TSParser;
-    const owned: Array<{ delete(): void }> = [];
-    let names: string[];
+    this.Parser = TSParser;
+    const highlights = new Query(language, queries.highlights);
+    const names = highlights.captureNames;
+    this.#indents = highlights.patternCount();
     try {
-      const parser = new TSParser();
-      owned.push(parser);
-      parser.setLanguage(language);
-      // Each query on its own first, for its errors and capture names.
-      const highlights = new Query(language, queries.highlights);
-      owned.push(highlights);
-      const indents = new Query(language, queries.indents);
-      owned.push(indents);
-      const folds = new Query(language, queries.folds);
-      owned.push(folds);
-      names = highlights.captureNames;
-      this.#indents = highlights.patternCount();
-      const sources = [queries.highlights, queries.indents, queries.folds];
-      this.query = new Query(language, sources.join("\n"));
-      for (const query of owned.splice(1)) query.delete();
-      this.#idle.push(parser);
-    } catch (error) {
-      for (const object of owned) object.delete();
-      throw error;
+      this.query = new Query(language, [queries.highlights, queries.indents, queries.folds].join("\n"));
+    } finally {
+      highlights.delete();
     }
+    this.queryDepth = Array.from({ length: this.query.patternCount() }, (_, i) => i).some(
+      (i) => !this.query.isPatternRooted(i),
+    ) ? 1 : 0;
     for (const name of [...names, "string", "comment"]) {
       const tag = captureTag(name, queries.tags);
       if (tag && !this.captures.has(name)) {
@@ -254,46 +248,18 @@ class Grammar {
     });
   }
 
-  /**
-   * A tree-sitter parser for one parse, until `release`. A parse that yields
-   * halfway keeps its parser, which resumes from where it stopped, so parses
-   * that take turns each need their own.
-   */
-  acquire(): TreeSitter.Parser {
-    const idle = this.#idle.pop();
-    if (idle) return idle;
-    const parser = new this.#Parser();
-    try {
-      parser.setLanguage(this.language);
-    } catch (error) {
-      parser.delete();
-      throw error;
-    }
-    return parser;
+  /** CodeMirror drops parses without cancelling them. Never evict live ones. */
+  track(parse: object): ParseResources {
+    const resources = new ParseResources();
+    this.#pending.add(resources);
+    this.#collected.register(parse, resources, resources);
+    return resources;
   }
 
-  /** Takes back a parser from `acquire`, dropping what it parsed halfway. */
-  release(parser: TreeSitter.Parser) {
-    parser.reset();
-    if (this.#idle.length < 2) this.#idle.push(parser);
-    else parser.delete();
-  }
-
-  /**
-   * Notes that `parse` holds tree-sitter memory until it settles, and frees
-   * that of the oldest unfinished parses, which CodeMirror may have dropped.
-   */
-  pend(parse: TqlParse) {
-    this.#pending.delete(parse);
-    this.#pending.add(parse);
-    for (const pending of this.#pending) {
-      if (this.#pending.size <= MAX_PENDING) break;
-      pending.dispose();
-    }
-  }
-
-  settle(parse: TqlParse) {
-    this.#pending.delete(parse);
+  release(resources: ParseResources) {
+    this.#collected.unregister(resources);
+    this.#pending.delete(resources);
+    resources.delete();
   }
 
   /** Runs the queries on `node` and records what they capture on nodes. */
@@ -337,14 +303,13 @@ class Grammar {
   }
 
   /** The node type of an unterminated string or comment. */
-  unterminated(name: Unterminated["name"]): NodeType {
+  unterminated(name: "string" | "comment"): NodeType {
     const typeId = this.language.idForNodeType(name, true) ?? ERROR_TYPE;
     return this.type(typeId, () => name, this.captures.get(name) ?? -1, 0);
   }
 
   delete() {
-    for (const parse of [...this.#pending]) parse.dispose();
-    for (const parser of this.#idle.splice(0)) parser.delete();
+    for (const resources of this.#pending) this.release(resources);
     this.query.delete();
   }
 }
@@ -361,25 +326,6 @@ const capturedAt = (captured: Map<number, Captured>, id: number): Captured => {
   return entry;
 };
 
-/** Where the lines of `text` start. */
-const lineStarts = (text: string): number[] => {
-  const starts = [0];
-  for (let at = text.indexOf("\n"); at >= 0; at = text.indexOf("\n", at + 1)) starts.push(at + 1);
-  return starts;
-};
-
-/** The row and column of `index` in a text whose lines start at `lines`. */
-const pointAt = (lines: readonly number[], index: number): TreeSitter.Point => {
-  let low = 0;
-  let high = lines.length - 1;
-  while (low < high) {
-    const middle = (low + high + 1) >> 1;
-    if (lines[middle] <= index) low = middle;
-    else high = middle - 1;
-  }
-  return { row: low, column: index - lines[low] };
-};
-
 /**
  * `tree`, which starts at `offset`, cut at `at`, where an unterminated string
  * or comment starts: without the nodes after it, except a first child that
@@ -387,27 +333,38 @@ const pointAt = (lines: readonly number[], index: number): TreeSitter.Point => {
  * nodes across it extended to `end`, the deepest of which takes `literal`.
  */
 const cutAt = (tree: Tree, offset: number, at: number, end: number, literal: Tree, keep = false): Tree => {
-  const children: Tree[] = [];
-  const positions: number[] = [];
-  for (let i = 0; i < tree.children.length; i++) {
-    const start = offset + tree.positions[i];
-    if (start >= at && !(keep && i === 0)) break;
-    let child = tree.children[i] as Tree;
-    if (start + child.length > at) {
-      child =
-        child.children.length > 0
-          ? cutAt(child, start, at, end, literal)
-          : new Tree(child.type, [], [], at - start);
+  const path: Array<{ tree: Tree; offset: number; count: number }> = [];
+  for (;;) {
+    let count = 0;
+    while (
+      count < tree.children.length &&
+      (offset + tree.positions[count] < at || (keep && count === 0))
+    ) count++;
+    path.push({ tree, offset, count });
+    const last = count - 1;
+    const child = tree.children[last] as Tree | undefined;
+    const start = offset + tree.positions[last];
+    if (!child || start + child.length <= at || child.children.length === 0) break;
+    tree = child;
+    offset = start;
+    keep = false;
+  }
+  let result: Tree | null = null;
+  while (path.length) {
+    const { tree, offset, count } = path.pop()!;
+    const children = tree.children.slice(0, count) as Tree[];
+    const positions = tree.positions.slice(0, count);
+    const last = count - 1;
+    const start = offset + positions[last];
+    if (last >= 0 && start + children[last].length > at)
+      children[last] = result ?? new Tree(children[last].type, [], [], at - start);
+    if ((last < 0 ? offset : start + children[last].length) < end) {
+      children.push(literal);
+      positions.push(at - offset);
     }
-    children.push(child);
-    positions.push(start - offset);
+    result = new Tree(tree.type, children, positions, end - offset);
   }
-  const last = children.length - 1;
-  if ((last < 0 ? offset : offset + positions[last] + children[last].length) < end) {
-    children.push(literal);
-    positions.push(at - offset);
-  }
-  return new Tree(tree.type, children, positions, end - offset);
+  return result!;
 };
 
 /**
@@ -435,10 +392,9 @@ const readRanges = (
  * indentation, folding, and commands work from TQL's tree-sitter grammar.
  *
  * Every parse parses the whole document, or the part before where CodeMirror
- * asks it to stop, in steps of a few milliseconds, so that parsing a large
- * document does not block the editor. The tree-sitter parser and queries live
- * in WebAssembly memory until `delete()` frees them, as do the trees of parses
- * that have not finished; after that, the parser must not be used anymore.
+ * asks it to stop, in steps targeting a few milliseconds. Native parsers and
+ * trees are freed when their work finishes. `delete()` frees the combined
+ * query and any unfinished parses; afterwards, this parser must not be used.
  */
 export class TqlParser extends Parser {
   readonly #grammar: Grammar;
@@ -484,42 +440,16 @@ interface Frame {
   readonly positions: number[];
 }
 
-const START = 0;
-const PARSE = 1;
-const BUILD = 2;
-const SCAN = 3;
-const DONE = 4;
-
 /**
- * A parse that works in steps: it parses with tree-sitter, converts the tree
- * into a Lezer tree with one node per tree-sitter node, with the type,
- * capture, and flags of the queries, and finds an unterminated string or
- * comment.
+ * The generator keeps local parse state across bounded advances. Its finally
+ * block frees native handles on completion or errors; Grammar also owns those
+ * handles for explicit deletion and finalization of abandoned parses.
  */
 class TqlParse implements PartialParse {
   stoppedAt: number | null = null;
-  #phase = START;
-  #text = "";
-  #lines: number[] = [];
-  /** The tree-sitter parser while it parses halfway. */
-  #treeSitter: TreeSitter.Parser | null = null;
-  #tree: TreeSitter.Tree | null = null;
-  #cursor: TreeSitter.TreeCursor | null = null;
-  #frames: Frame[] = [];
-  #captured = new Map<number, Captured>();
-  /** The nodes that start before this have their captures. */
-  #queried = 0;
-  /** The literals that are not inside other ones, as start and end pairs. */
-  #literals: number[] = [];
-  #literalDepth = 0;
-  #exhausted = false;
-  /** Whether the tree-sitter root is a program, which becomes the top. */
-  #program = true;
-  /** Up to where the Lezer tree is complete. */
-  #pos = 0;
-  #lezer: Tree | null = null;
-  #scan = 0;
-  #literal = 0;
+  parsedPos: number;
+  #deadline = 0;
+  #work: Generator<undefined, Tree> | null = null;
   #result: Tree | null = null;
 
   constructor(
@@ -527,10 +457,8 @@ class TqlParse implements PartialParse {
     private readonly input: Input,
     private readonly ranges: readonly { from: number; to: number }[],
     private readonly from: number,
-  ) {}
-
-  get parsedPos(): number {
-    return this.from + (this.#phase >= BUILD ? this.#pos : 0);
+  ) {
+    this.parsedPos = from;
   }
 
   stopAt(pos: number): void {
@@ -538,277 +466,162 @@ class TqlParse implements PartialParse {
   }
 
   advance(): Tree | null {
-    const deadline = now() + STEP_TIME;
+    if (this.#result) return this.#result;
+    if (!this.#work) this.#work = this.run();
+    this.#deadline = now() + STEP_TIME;
+    const step = this.#work.next();
+    if (!step.done) return null;
+    this.#work = null;
+    return (this.#result = step.value);
+  }
+
+  private *run(): Generator<undefined, Tree> {
+    const grammar = this.grammar;
+    const resources = grammar.track(this);
+    let text = "";
+    let parser: TreeSitter.Parser | null = null;
+    let tree: TreeSitter.Tree | null = null;
+    let cursor: TreeSitter.TreeCursor | null = null;
     try {
-      for (;;) {
-        switch (this.#phase) {
-          case START:
-            this.#start();
-            break;
-          case PARSE:
-            // Tree-sitter has no tree before it is done, so a parse that
-            // has to stop before then returns an empty one.
-            if (this.stoppedAt !== null && this.stoppedAt <= this.from) {
-              this.dispose();
-              return this.#finish(new Tree(this.grammar.top, [], [], 0));
-            }
-            if (!this.#parse(deadline)) return this.#pend();
-            break;
-          case BUILD:
-            if (!this.#build(deadline)) return this.#pend();
-            break;
-          case SCAN:
-            if (!this.#scanStep(deadline)) return this.#pend();
-            break;
-          default:
-            return this.#result;
+      text = readRanges(this.input, this.ranges, this.stoppedAt ?? Infinity);
+      parser = resources.parser = new grammar.Parser();
+      parser.setLanguage(grammar.language);
+      while (!tree) {
+        if (this.stoppedAt !== null && this.stoppedAt <= this.from)
+          return new Tree(grammar.top, [], [], 0);
+        let interrupted = false;
+        tree = resources.tree = parser.parse(text, null, {
+          progressCallback: () => (interrupted = now() > this.#deadline),
+        });
+        if (!tree) {
+          if (!interrupted) throw new Error("tree-sitter did not parse");
+          yield;
         }
       }
-    } catch (error) {
-      console.error("Failed to parse TQL", error);
-      this.dispose();
-      this.#pos = this.#text.length;
-      return this.#finish(new Tree(this.grammar.top, [], [], this.#text.length));
-    }
-  }
+      parser.delete();
+      parser = resources.parser = null;
 
-  #pend(): null {
-    this.grammar.pend(this);
-    return null;
-  }
-
-  #finish(tree: Tree): Tree {
-    this.grammar.settle(this);
-    this.#phase = DONE;
-    this.#result = tree;
-    return tree;
-  }
-
-  /** Frees the tree-sitter memory of the parse, which then starts over. */
-  dispose() {
-    this.grammar.settle(this);
-    if (this.#treeSitter) this.grammar.release(this.#treeSitter);
-    this.#cursor?.delete();
-    this.#tree?.delete();
-    this.#treeSitter = this.#cursor = this.#tree = null;
-    this.#frames = [];
-    this.#captured = new Map();
-    this.#literals = [];
-    this.#literalDepth = this.#queried = this.#scan = this.#literal = this.#pos = 0;
-    this.#exhausted = false;
-    this.#lezer = null;
-    this.#phase = START;
-  }
-
-  /** Reads the text, up to where the parse stops if CodeMirror said so. */
-  #start() {
-    this.#phase = PARSE;
-    if (this.stoppedAt !== null && this.stoppedAt <= this.from) return;
-    this.#text = readRanges(this.input, this.ranges, this.stoppedAt ?? Infinity);
-    this.#lines = lineStarts(this.#text);
-  }
-
-  /** Parses with tree-sitter until done or past the deadline. */
-  #parse(deadline: number): boolean {
-    const parser = (this.#treeSitter ??= this.grammar.acquire());
-    let late = false;
-    const tree = parser.parse(this.#text, null, {
-      progressCallback: () => (late = now() > deadline),
-    });
-    if (tree === null) {
-      if (!late) throw new Error("tree-sitter did not parse");
-      return false;
-    }
-    this.#tree = tree;
-    this.#treeSitter = null;
-    this.grammar.release(parser);
-    const cursor = (this.#cursor = tree.walk());
-    // When the root is not a program, it is the top's child.
-    const program = (this.#program = cursor.nodeType === "program");
-    this.#frames = [
-      {
-        type: this.grammar.top,
+      const captured = new Map<number, Captured>();
+      let queriedDepth = Infinity;
+      const literalRanges: number[] = [];
+      let literalDepth = 0;
+      cursor = resources.cursor = tree.walk();
+      const program = cursor.nodeType === "program";
+      if (program) grammar.capture(tree.rootNode, { maxStartDepth: grammar.queryDepth }, captured);
+      const frames: Frame[] = [{
+        type: grammar.top,
         from: 0,
-        to: this.#text.length,
+        to: text.length,
         capture: -1,
         literal: false,
         children: [],
         positions: [],
-      },
-    ];
-    this.#exhausted = program && !cursor.gotoFirstChild();
-    this.#phase = BUILD;
-    return true;
-  }
+      }];
+      const add = (node: Tree, from: number) => {
+        const parent = frames[frames.length - 1];
+        parent.children.push(node);
+        parent.positions.push(from - parent.from);
+      };
+      const close = (end?: number) => {
+        const frame = frames.pop()!;
+        if (frame.literal) literalDepth--;
+        add(new Tree(frame.type, frame.children, frame.positions, (end ?? frame.to) - frame.from), frame.from);
+      };
 
-  /** Converts nodes until done, stopped, or past the deadline. */
-  #build(deadline: number): boolean {
-    const cursor = this.#cursor!;
-    for (let steps = 1; ; steps++) {
-      if (this.#exhausted) {
-        this.#endBuild(this.#text.length);
-        return true;
-      }
-      if ((steps & 15) === 0 && now() > deadline) return false;
-      const from = cursor.startIndex;
-      if (this.stoppedAt !== null && this.from + from >= this.stoppedAt) {
-        this.#endBuild(from);
-        return true;
-      }
-      this.#pos = from;
-      if (this.#visit(cursor, from)) continue;
-      while (!cursor.gotoNextSibling()) {
-        if (this.#frames.length === 1) {
-          this.#exhausted = true;
+      let exhausted = program && !cursor.gotoFirstChild();
+      let end = text.length;
+      for (let steps = 0; !exhausted; steps++) {
+        const from = cursor.startIndex;
+        this.parsedPos = this.from + from;
+        if ((steps & 15) === 0 && now() > this.#deadline) yield;
+        if (this.stoppedAt !== null && this.parsedPos >= this.stoppedAt) {
+          end = from;
           break;
         }
-        const frame = this.#frames.pop()!;
-        if (frame.literal) this.#literalDepth--;
-        this.#add(new Tree(frame.type, frame.children, frame.positions, frame.to - frame.from), frame.from);
-        cursor.gotoParent();
+
+        if (cursor.nodeIsMissing) {
+          add(new Tree(grammar.type(ERROR_TYPE, () => "⚠", -1, 0), [], [], 0), from);
+        } else {
+          // Query small subtrees once. For larger ones, query only patterns
+          // rooted here (and sibling patterns, if any), then visit children.
+          if (frames.length <= queriedDepth) {
+            const node = cursor.currentNode;
+            queriedDepth = node.descendantCount <= 256 ? frames.length : Infinity;
+            grammar.capture(node, {
+              maxStartDepth: queriedDepth === Infinity ? grammar.queryDepth : undefined,
+            }, captured);
+          }
+          const entry = captured.get(cursor.nodeId);
+          const parent = frames[frames.length - 1];
+          // Uncolored descendants inherit the enclosing capture.
+          const capture = entry && entry.capture >= 0 ? entry.capture : parent.capture;
+          const type = grammar.type(cursor.nodeTypeId, () => cursor!.nodeType, capture, entry?.flags ?? 0);
+          const to = cursor.endIndex;
+          const literal = literals.has(type.name);
+          if (literal && literalDepth === 0 && to > from) literalRanges.push(from, to);
+          if (cursor.gotoFirstChild()) {
+            if (literal) literalDepth++;
+            frames.push({ type, from, to, capture, literal, children: [], positions: [] });
+            continue;
+          }
+          add(new Tree(type, [], [], to - from), from);
+        }
+        while (!cursor.gotoNextSibling()) {
+          if (frames.length === 1) {
+            exhausted = true;
+            break;
+          }
+          close();
+          cursor.gotoParent();
+        }
       }
-    }
-  }
+      while (frames.length > 1) close(end);
+      const top = frames[0];
+      let result = new Tree(top.type, top.children, top.positions, end);
+      this.parsedPos = this.from + end;
+      cursor.delete();
+      cursor = resources.cursor = null;
+      tree.delete();
+      tree = resources.tree = null;
 
-  /** Converts the node at the cursor, and enters it if it has children. */
-  #visit(cursor: TreeSitter.TreeCursor, from: number): boolean {
-    const grammar = this.grammar;
-    const frame = this.#frames[this.#frames.length - 1];
-    if (cursor.nodeIsMissing) {
-      // Lezer marks unfinished nodes with empty error nodes.
-      this.#add(new Tree(grammar.type(ERROR_TYPE, () => "⚠", -1, 0), [], [], 0), from);
-      return false;
-    }
-    const to = cursor.endIndex;
-    this.#cover(from);
-    const captured = this.#captured.get(cursor.nodeId);
-    // An inner node without a color of its own takes the color of the node
-    // around it, as tree-sitter colors a node's whole range.
-    const capture = captured !== undefined && captured.capture >= 0 ? captured.capture : frame.capture;
-    const type = grammar.type(cursor.nodeTypeId, () => cursor.nodeType, capture, captured?.flags ?? 0);
-    const literal = literals.has(type.name);
-    if (literal && this.#literalDepth === 0 && to > from) this.#literals.push(from, to);
-    if (!cursor.gotoFirstChild()) {
-      this.#add(new Tree(type, [], [], to - from), from);
-      return false;
-    }
-    if (literal) this.#literalDepth++;
-    this.#frames.push({ type, from, to, capture, literal, children: [], positions: [] });
-    return true;
-  }
-
-  #add(tree: Tree, from: number) {
-    const frame = this.#frames[this.#frames.length - 1];
-    frame.children.push(tree);
-    frame.positions.push(from - frame.from);
-  }
-
-  /**
-   * Runs the queries over the text from just before `from` on, a part at a
-   * time, so that the node at `from` and the ones after it in the part have
-   * their captures. A part covers the nodes that overlap it, and runs the
-   * patterns of the nodes around it too, so that captures do not depend on
-   * where the parts end.
-   */
-  #cover(from: number) {
-    if (from < this.#queried) return;
-    // Ranges in points, as web-tree-sitter 0.26 passes index ranges to
-    // tree-sitter as bytes rather than UTF-16 code units. Starting before
-    // `from` includes an empty node at `from`.
-    const options: TreeSitter.QueryOptions = {
-      startPosition: pointAt(this.#lines, Math.max(0, from - 1)),
-    };
-    const end = from + QUERY_SPAN;
-    if (end < this.#text.length) {
-      options.endPosition = pointAt(this.#lines, end);
-      this.#queried = end;
-    } else {
-      this.#queried = Infinity;
-    }
-    this.grammar.capture(this.#tree!.rootNode, options, this.#captured);
-  }
-
-  /** Ends the conversion at `end`, where the top node then ends. */
-  #endBuild(end: number) {
-    const frames = this.#frames;
-    while (frames.length > 1) {
-      const frame = frames.pop()!;
-      this.#add(new Tree(frame.type, frame.children, frame.positions, end - frame.from), frame.from);
-    }
-    const top = frames[0];
-    this.#lezer = new Tree(top.type, top.children, top.positions, end);
-    this.#frames = [];
-    this.#pos = end;
-    this.#cursor!.delete();
-    this.#cursor = null;
-    this.#tree!.delete();
-    this.#tree = null;
-    this.#phase = SCAN;
-  }
-
-  /**
-   * Looks for the first string or block comment that is not closed, until
-   * done or past the deadline. Tree-sitter does not see these as strings: its
-   * lexer only matches a closed string, so it makes the quote an error and
-   * parses on what follows as code. Since strings and block comments may span
-   * lines, one that is not closed runs to the end of the document, as
-   * tree-sitter would lex it once closed there.
-   *
-   * This only looks at quotes and comment openers outside the literals that
-   * tree-sitter parsed, which during error recovery may include closed ones.
-   */
-  #scanStep(deadline: number): boolean {
-    const text = this.#text;
-    const end = this.#pos;
-    const literals = this.#literals;
-    const pattern = /["']|\/\*/g;
-    pattern.lastIndex = this.#scan;
-    for (let steps = 1; ; steps++) {
-      if ((steps & 255) === 0 && now() > deadline) {
-        this.#scan = pattern.lastIndex;
-        return false;
-      }
-      const match = pattern.exec(text);
-      if (match === null || match.index >= end) return this.#done(null);
-      const at = match.index;
-      let i = this.#literal;
-      while (i < literals.length && literals[i + 1] <= at) i += 2;
-      this.#literal = i;
-      if (i < literals.length && literals[i] <= at) {
-        pattern.lastIndex = Math.max(literals[i + 1], at + 1);
-        continue;
-      }
-      if (match[0] === "/*") {
-        const close = text.indexOf("*/", at + 2);
-        if (close >= 0) {
-          pattern.lastIndex = close + 2;
+      // Tree-sitter only lexes closed strings/comments. Look outside its
+      // literals for an opener with no closer; that literal runs to the end.
+      const pattern = /["']|\/\*/g;
+      let literal = 0;
+      for (let steps = 0; ; steps++) {
+        if ((steps & 255) === 0 && now() > this.#deadline) yield;
+        const match = pattern.exec(text);
+        if (!match || match.index >= end) break;
+        const at = match.index;
+        while (literal < literalRanges.length && literalRanges[literal + 1] <= at) literal += 2;
+        if (literal < literalRanges.length && literalRanges[literal] <= at) {
+          pattern.lastIndex = Math.max(literalRanges[literal + 1], at + 1);
           continue;
         }
-        return this.#done({ from: at, name: "comment" });
+        let from = at;
+        let to: number | null;
+        const name = match[0] === "/*" ? "comment" : "string";
+        if (name === "comment") {
+          const close = text.indexOf("*/", at + 2);
+          to = close < 0 ? null : close + 2;
+        } else {
+          ({ from, to } = stringAt(text, at));
+        }
+        if (to !== null) {
+          pattern.lastIndex = to;
+          continue;
+        }
+        const node = new Tree(grammar.unterminated(name), [], [], end - from);
+        result = cutAt(result, 0, from, end, node, !program);
+        break;
       }
-      const string = stringAt(text, at);
-      if (string.to !== null) {
-        pattern.lastIndex = string.to;
-        continue;
-      }
-      return this.#done({ from: string.from, name: "string" });
+      return result;
+    } catch (error) {
+      console.error("Failed to parse TQL", error);
+      this.parsedPos = this.from + text.length;
+      return new Tree(grammar.top, [], [], text.length);
+    } finally {
+      grammar.release(resources);
     }
-  }
-
-  /**
-   * Returns the Lezer tree, with an unterminated string or comment extending
-   * the deepest node around its start to the end.
-   */
-  #done(unterminated: Unterminated | null): true {
-    let tree = this.#lezer!;
-    if (unterminated !== null) {
-      const { from, name } = unterminated;
-      const end = this.#pos;
-      const literal = new Tree(this.grammar.unterminated(name), [], [], end - from);
-      // Another root stays the top's child, wherever the literal starts.
-      tree = cutAt(tree, 0, from, end, literal, !this.#program);
-    }
-    this.#finish(tree);
-    return true;
   }
 }

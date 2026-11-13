@@ -84,10 +84,10 @@ export const paint = (text, tree, classes = platformClasses) => {
  * captures of the same node the later pattern wins. This is how the Tenzir
  * platform colors its read-only views.
  */
-export const paintTreeSitter = (text, classes = platformClasses) => {
+export const paintTreeSitter = (text, classes = platformClasses, highlights = tqlQueries.highlights) => {
   const parser = new TreeSitter.Parser();
   parser.setLanguage(language);
-  const query = new TreeSitter.Query(language, tqlQueries.highlights);
+  const query = new TreeSitter.Query(language, highlights);
   const tree = parser.parse(text);
   try {
     const captures = query
