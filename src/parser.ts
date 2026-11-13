@@ -588,7 +588,7 @@ class TqlParse implements PartialParse {
       // literals for an opener with no closer; that literal runs to the end.
       const pattern = /["']|\/\*/g;
       let literal = 0;
-      for (let steps = 0; ; steps++) {
+      for (let steps = 1; ; steps++) {
         if ((steps & 255) === 0 && now() > this.#deadline) yield;
         const match = pattern.exec(text);
         if (!match || match.index >= end) break;

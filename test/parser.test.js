@@ -117,17 +117,22 @@ describe("parsing in steps", () => {
   it("returns the tree so far when stopped where it is", () => {
     const support = makeSupport();
     const parse = support.language.parser.startParse(large);
-    let steps = 0;
-    while (parse.parsedPos < 1000) {
-      assert.equal(parse.advance(), null);
-      steps++;
+    // Advance past the budget at each checkpoint, independently of CPU speed.
+    let time = 0;
+    const clock = mock.method(performance, "now", () => (time += 10));
+    try {
+      while (parse.parsedPos < 1000) assert.equal(parse.advance(), null);
+      // As CodeMirror does when a parse runs out of time. Finishing this
+      // short prefix must not yield again before recovery starts.
+      const stopped = parse.parsedPos;
+      parse.stopAt(stopped);
+      const tree = parse.advance();
+      assert.equal(tree.length, stopped);
+      assert.equal(parse.parsedPos, stopped);
+    } finally {
+      clock.mock.restore();
+      support.language.parser.delete();
     }
-    // As CodeMirror does when a parse runs out of time.
-    parse.stopAt(parse.parsedPos);
-    const tree = parse.advance();
-    assert.equal(tree.length, parse.parsedPos);
-    assert.ok(steps > 1);
-    support.language.parser.delete();
   });
 
   it("does not block on a large document", () => {
