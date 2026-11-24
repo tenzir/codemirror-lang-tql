@@ -36,6 +36,7 @@ export const tqlCaptureTags: Readonly<Record<string, Tag>> = {
   punctuation: t.punctuation,
   "punctuation.bracket": t.bracket,
   "punctuation.delimiter": t.separator,
+  "punctuation.special": t.special(t.punctuation),
 };
 
 /**

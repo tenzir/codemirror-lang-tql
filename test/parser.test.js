@@ -415,7 +415,8 @@ describe("resources", () => {
 
   it("can interleave parses without mixing their native state", () => {
     const live = track();
-    const support = makeSupport();
+    // Colored as tree-sitter colors, which leaves unstyled punctuation out.
+    const support = makeSupport({ tags: { punctuation: null } });
     const texts = [body.repeat(20), "x = 1\n".repeat(5000)];
     const parses = texts.map((text) => support.language.parser.startParse(text));
     const trees = [null, null];

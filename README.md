@@ -197,6 +197,7 @@ The highlight query's captures become these tags (`tqlCaptureTags`):
 | `punctuation`           | `tags.punctuation`                 |
 | `punctuation.bracket`   | `tags.bracket`                     |
 | `punctuation.delimiter` | `tags.separator`                   |
+| `punctuation.special`   | `tags.special(tags.punctuation)`   |
 
 A capture without an entry takes the tag of the nearest capture it refines, so
 `function.builtin` would be a `function`. Pipeline operators (`function.operator`),
@@ -232,6 +233,12 @@ const extensions = [
   syntaxHighlighting(tqlHighlighter(classes)),
 ];
 ```
+
+An entry covers the captures that refine it, so `punctuation: null` also
+leaves out the braces around an expression in a format string
+(`punctuation.special`), which then take the color of the string. To color
+them apart, give them their tag back with
+`"punctuation.special": tqlCaptureTags["punctuation.special"]`.
 
 ## Editing
 
