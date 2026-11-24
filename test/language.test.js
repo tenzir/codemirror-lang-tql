@@ -70,16 +70,16 @@ describe("highlighting", () => {
 
   it("colors inner captures over outer ones", () => {
     // The replacement is part of the format string, whose color its
-    // uncolored nodes keep, while its braces are keywords.
+    // uncolored nodes keep, while its braces are special punctuation.
     const text = 'service = f"port-{id.resp_p}"';
     assert.deepEqual(highlight(text), [
       ["=", "operator"],
       ['f"port-', "string"],
-      ["{", "keyword"],
+      ["{", "punctuation.special"],
       ["id", "string"],
       [".", "keyword"],
       ["resp_p", "string"],
-      ["}", "keyword"],
+      ["}", "punctuation.special"],
       ['"', "string"],
     ]);
   });
@@ -106,6 +106,20 @@ describe("highlighting", () => {
     assert.equal(tqlCaptureTags.comment, t.comment);
     assert.equal(tqlCaptureTags["punctuation.bracket"], t.bracket);
     assert.equal(tqlCaptureTags["punctuation.delimiter"], t.separator);
+    assert.equal(tqlCaptureTags["punctuation.special"], t.special(t.punctuation));
+  });
+
+  it("colors brackets as punctuation", () => {
+    const text = "x = {a: [1]}";
+    assert.deepEqual(highlight(text), [
+      ["=", "operator"],
+      ["{", "punctuation.bracket"],
+      [":", "keyword"],
+      ["[", "punctuation.bracket"],
+      ["1", "number"],
+      ["]", "punctuation.bracket"],
+      ["}", "punctuation.bracket"],
+    ]);
   });
 
   it("works with standard highlighters", () => {
